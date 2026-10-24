@@ -8,6 +8,5 @@ rdkit>=2024.3
 # Sponsor integrations. Both are optional: the app runs fully without them.
 psycopg2-binary>=2.9     # Tiger Data (TimescaleDB)
 google-genai>=0.3        # Gemini explanation + NL query
-elevenlabs>=2.0          # narration
 python-dotenv>=1.0
 pytest>=8.0

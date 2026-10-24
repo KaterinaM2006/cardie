@@ -41,15 +41,15 @@ async function boot() {
   sel.value = S.drug;
 
   const integ = S.sweep.integrations || {};
-  S.elevenlabs = !!integ.elevenlabs;
+  S.speech = 'speechSynthesis' in window;
   $('integrations').innerHTML =
     `<span class="pill ${integ.gemini ? 'on' : ''}">Gemini ${integ.gemini ? 'live' : 'offline'}</span>` +
     `<span class="pill ${integ.tiger ? 'on' : ''}">Tiger Data ${integ.tiger ? 'live' : 'cached'}</span>` +
-    `<span class="pill ${integ.elevenlabs ? 'on' : ''}">Narration ${integ.elevenlabs ? 'live' : 'offline'}</span>`;
+    `<span class="pill ${S.speech ? 'on' : ''}">Narration ${S.speech ? 'browser' : 'unsupported'}</span>`;
 
   cell = new CellView($('cell'), { onHover: showTip, onModeChange: setStage });
 
-  $('narrate').disabled = !S.elevenlabs;
+  $('narrate').disabled = !S.speech;
   renderModelCard();
   renderValidation();
   selectDrug(S.drug);
@@ -160,9 +160,7 @@ function renderSidebar() {
 
 function queueWhy() {
   clearTimeout(whyTimer);
-  if (narrateAudio) { narrateAudio.pause(); narrateAudio = null; }
-  $('narrateStatus').textContent = S.elevenlabs ? ''
-    : 'offline (no ELEVENLABS_API_KEY)';
+  stopNarration();
   // Debounced, and cached server-side per (drug, dose): the slider never
   // triggers a model call on every tick.
   whyTimer = setTimeout(async () => {
@@ -184,39 +182,31 @@ function queueWhy() {
   }, 280);
 }
 
-// ---- ElevenLabs narration ---------------------------------------------------
+// ---- narration (Web Speech API) ---------------------------------------------
+//
+// The browser's own voice reads the text already on screen. No network
+// call, no key, no account: speechSynthesis is native to the browser, so
+// this can never be the thing that breaks at a judging table.
 
-let narrateAudio = null;
+function stopNarration() {
+  if (S.speech) speechSynthesis.cancel();
+  $('narrateStatus').textContent = S.speech ? '' : 'speech synthesis not supported here';
+}
 
-async function narrate() {
-  if (!S.elevenlabs) {
-    $('narrateStatus').textContent = 'narration offline (no ELEVENLABS_API_KEY)';
+function narrate() {
+  if (!S.speech) {
+    $('narrateStatus').textContent = 'speech synthesis not supported in this browser';
     return;
   }
-  if (narrateAudio) { narrateAudio.pause(); narrateAudio = null; }
-  const drug = S.drug, dose = Math.round(S.dose * 2) / 2;
-  $('narrateStatus').textContent = 'generating…';
-  $('narrate').disabled = true;
-  try {
-    const r = await fetch('./api/narrate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ drug, dose }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      $('narrateStatus').textContent = j.error || 'narration unavailable';
-      return;
-    }
-    const blob = await r.blob();
-    narrateAudio = new Audio(URL.createObjectURL(blob));
-    narrateAudio.onended = () => { $('narrateStatus').textContent = ''; };
-    narrateAudio.play();
-    $('narrateStatus').textContent = 'playing…';
-  } catch {
-    $('narrateStatus').textContent = 'narration unavailable';
-  } finally {
-    $('narrate').disabled = false;
-  }
+  speechSynthesis.cancel();
+  const text = $('why').textContent;
+  if (!text || text === '—' || text === '…') return;
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 1.0;
+  utter.onstart = () => { $('narrateStatus').textContent = 'speaking…'; };
+  utter.onend = () => { $('narrateStatus').textContent = ''; };
+  utter.onerror = () => { $('narrateStatus').textContent = 'narration failed'; };
+  speechSynthesis.speak(utter);
 }
 
 // ---- Tiger Data cross-drug comparison --------------------------------------

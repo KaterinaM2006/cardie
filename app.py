@@ -16,7 +16,6 @@ load_dotenv()
 
 import classifier
 import explain as explain_mod
-import narration
 import tiger
 from drug_info import DRUG_INFO
 
@@ -120,8 +119,7 @@ def api_sweep():
                     'drug_info': DRUG_INFO,
                     'model_info': MODEL_INFO,
                     'integrations': {'tiger': tiger.available(),
-                                     'gemini': explain_mod.available(),
-                                     'elevenlabs': narration.available()}})
+                                     'gemini': explain_mod.available()}})
 
 
 @app.get('/api/run')
@@ -185,30 +183,6 @@ def api_ask():
 @app.get('/api/validation')
 def api_validation():
     return jsonify(VALIDATION)
-
-
-@app.post('/api/narrate')
-def api_narrate():
-    """Text-to-speech of the already-computed explanation. ElevenLabs reads
-    text that explain.py produced; it never sees the simulation and cannot
-    change any number on the page."""
-    body = request.get_json(force=True, silent=True) or {}
-    drug = body.get('drug', '')
-    if drug not in SWEEP['drugs']:
-        return jsonify({'error': f'unknown drug {drug!r}'}), 404
-    if not narration.available():
-        return jsonify({'error': 'ELEVENLABS_API_KEY not configured'}), 503
-    e = dose_entry(drug, body.get('dose', 1))
-    d = SWEEP['drugs'][drug]
-    text = explain_mod.explain(
-        drug=drug, dose_mult=round(float(e['mult']), 2), conc_nM=e['conc_nM'],
-        block=e['block'], bound=e['peak_bound'], qnet=e['qNet'],
-        dapd90=e['dAPD90'], risk=risk_for(d['qnet_mean']),
-        repol_failure=e['repol_failure'])['text']
-    audio = narration.speak(text)
-    if audio is None:
-        return jsonify({'error': 'narration unavailable'}), 502
-    return app.response_class(audio, mimetype='audio/mpeg')
 
 
 _analogue = None

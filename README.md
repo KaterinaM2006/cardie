@@ -43,9 +43,9 @@ cd cardie
 It ends by printing `control qNet=0.0781 APD90=277.2` — if you see that,
 the pipeline is correct and the rest is assembly.
 
-To enable the optional sponsor integrations (Tiger Data, Gemini,
-ElevenLabs), copy `.env.example` to `.env` and fill in the keys you have —
-`app.py` loads it automatically. None are required: the app runs fully
+To enable the optional sponsor integrations (Tiger Data, Gemini), copy
+`.env.example` to `.env` and fill in the keys you have — `app.py` loads it
+automatically. None are required: the app runs fully
 without any of them, and the header pills say which are live.
 
 `data/sweep.json` is committed, so the app runs immediately — no simulation
@@ -134,10 +134,11 @@ about any identified individual. This is preclinical compound screening.
           │
           ▼
   4. Flask API    ──► Gemini: explain / parse         app.py, explain.py
-          │        ──► ElevenLabs: narrate explanation narration.py
           │        ──► drug_info.py: clinical context per compound
           ▼
-  5. web UI                  animated myocyte + charts       static/
+  5. web UI    animated myocyte + charts + narration   static/
+                (narration: the browser's own voice reads the Why text —
+                 no backend call, no key)
 ```
 
 Module 1 is the only place with more than one implementation; everything
@@ -153,7 +154,6 @@ pipeline.
 | `pharmacology.py` | Measured lookup and Morgan/Tanimoto nearest analogue. |
 | `tiger.py` | TimescaleDB hypertable, continuous aggregate, compression. |
 | `explain.py` | Gemini explanation + NL query, with offline fallbacks. |
-| `narration.py` | ElevenLabs text-to-speech of the finished explanation. |
 | `drug_info.py` | Hand-curated clinical reference (class, use, mechanism, status) per compound. |
 | `app.py` | Flask JSON API, serves the precomputed bundle from memory. |
 | `static/signals.js` | The mapping layer: simulated state → colour, contraction, glyph state. |
@@ -186,7 +186,6 @@ GET  /api/sweep                    the whole precomputed bundle (the page fetche
 GET  /api/run?drug=&dose=          qNet, APD90, risk, block profile, frames
 GET  /api/analogue?smiles=         nearest measured analogue + similarity
 POST /api/explain  {drug, dose}    plain-English mechanistic explanation
-POST /api/narrate  {drug, dose}    MP3 of that same explanation, read aloud (ElevenLabs)
 POST /api/ask      {question}      natural language → structured query
 GET  /api/validation               confusion matrices + per-drug qNet
 GET  /api/trace?drug=&dose=&res=   trace from Tiger Data (continuous aggregate)
@@ -196,16 +195,18 @@ GET  /api/tiger/cross-drug?t=&dose= every compound's V at one instant — live
                                     sweep when it isn't (source: "tiger"|"cache")
 ```
 
-Everything except `/api/trace` and `/api/narrate` is served from memory, so
-the dose slider never waits on the network. `/api/tiger/cross-drug` degrades
-to the cached sweep rather than failing outright.
+Everything except `/api/trace` is served from memory, so the dose slider
+never waits on the network. Narration (the "Narrate" button) is entirely
+client-side — the browser's own `speechSynthesis` reads the Why text, so
+there is no `/api/narrate` route to wait on either. `/api/tiger/cross-drug`
+degrades to the cached sweep rather than failing outright.
 
 ---
 
 ## Sponsor integrations
 
-All three are **optional**: with no keys configured the app runs fully, and
-the header says which are live.
+Both are **optional**: with no keys configured the app runs fully, and the
+header says which are live.
 
 **Tiger Data** — simulation time is an integer offset within the beat, not a
 wall clock, so `ap_sample` is an integer-time hypertable rather than faked
@@ -232,16 +233,15 @@ Explanations are cached per (drug, dose) so the slider cannot trigger an API
 call per tick, and both paths fall back — a template built from the same
 numbers, and a regex parser — so a rate limit cannot break the demo.
 
-**ElevenLabs** — reads the Gemini/template explanation aloud via the
-**Narrate** button next to the "Why" panel. Same hard rule as Gemini: it is
-handed a finished sentence of English and computes nothing — it cannot
-change a single number on the page. Audio is cached per explanation text, and
-the button simply doesn't do anything useful without `ELEVENLABS_API_KEY`
-set (the pill in the header says "offline").
-
-```bash
-export ELEVENLABS_API_KEY='…'
-```
+**Narration** (not a sponsor integration — it's the browser) — the
+**Narrate** button next to the "Why" panel reads the Gemini/template
+explanation aloud using `speechSynthesis`, the Web Speech API every modern
+browser ships natively. Same hard rule as Gemini: it is handed a finished
+sentence of English and computes nothing — it cannot change a single number
+on the page. No key, no account, no network call, so it is never the thing
+that goes down at a judging table. (An earlier version of this used
+ElevenLabs for a more natural voice; that needed a paid API tier to work at
+all via the API, so it was swapped for this.)
 
 **Vultr** — the sweep is the one genuinely compute-heavy step:
 
