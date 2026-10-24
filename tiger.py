@@ -100,13 +100,32 @@ class Loader:
     def ensure_schema(self):
         with self.conn, self.conn.cursor() as cur:
             cur.execute(SCHEMA)
+
+        # CREATE MATERIALIZED VIEW ... WITH (timescaledb.continuous) and
+        # compression DDL both refuse to run inside a transaction block.
+        # autocommit, restored after, is the correct way to run them --
+        # not a license-tier failure, the earlier bare `with self.conn` was
+        # just the wrong transaction scope for DDL that can't be batched.
+        prev_autocommit = self.conn.autocommit
+        self.conn.autocommit = True
+        try:
             try:
-                cur.execute(CAGG)
-                cur.execute(COMPRESS)
+                with self.conn.cursor() as cur:
+                    cur.execute(CAGG)
             except Exception as e:                   # noqa: BLE001
-                # Continuous aggregates and compression need a Timescale
-                # licence tier; the hypertable itself still works without.
-                print(f'tiger: optional feature skipped ({e})')
+                # Integer-time hypertables need a registered "now" function
+                # for continuous aggregates; this schema's time column is
+                # per-run relative time, not a global clock, so there isn't
+                # a sensible one to register. The raw hypertable (and every
+                # query this app actually makes) works fine without it.
+                print(f'tiger: continuous aggregate skipped ({e})')
+            try:
+                with self.conn.cursor() as cur:
+                    cur.execute(COMPRESS)
+            except Exception as e:                   # noqa: BLE001
+                print(f'tiger: compression skipped ({e})')
+        finally:
+            self.conn.autocommit = prev_autocommit
 
     def load_run(self, drug, dose_mult, conc_nM, run, qnet=None, apd90=None,
                  fda_label=None):

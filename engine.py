@@ -55,6 +55,14 @@ HERG_KEYS = ('Kmax', 'Ku', 'n', 'halfmax', 'Vhalf')
 
 CIPA_LABEL = {2: 'HIGH', 1: 'INTERMEDIATE', 0: 'LOW'}
 
+# [cell] mode in the .mmt: "The type of cell. Endo = 0, Epi = 1, Mid = 2".
+# A plain literal constant (cell.mode = 1 in the file), so it is settable via
+# set_constant() like any drug-block parameter -- no recompile needed to
+# switch cell type. CiPA v1.0 itself validates on endocardial (0) only;
+# modes 1/2 are an additive view of transmural heterogeneity, not a
+# replacement for the validated single-cell classification.
+MODE_LABEL = {0: 'Endocardial', 1: 'Epicardial', 2: 'Mid-myocardial (M cell)'}
+
 # Signals written per frame, in the order the Tiger Data loader expects.
 FRAME_KEYS = ('V', 'Ca_i', 'INa', 'INaL', 'ICaL', 'Ito', 'IKr', 'IKs', 'IK1',
               'hERG_open', 'hERG_bound')
@@ -113,24 +121,31 @@ class Engine:
         # TRAP 9.1: pre() overwrites the default state. Keep a pristine copy.
         self.S0 = list(self.sim.state())
 
-    def _reset(self):
+    def _reset(self, mode=0):
         self.sim.set_default_state(self.S0)
         self.sim.set_state(self.S0)
         self.sim.set_time(0)
+        self.sim.set_constant('cell.mode', mode)
         for var, g in self.base_g.items():
             self.sim.set_constant(var, g)
         for k, v in IKR_OFF.items():
             self.sim.set_constant('ikr.' + k, v)
 
     def run(self, ic50_row=None, herg_pars=None, conc_nM=0.0, prepace=400,
-            frames=300):
+            frames=300, mode=0):
         """Run one analysed beat after `prepace` pre-paced beats.
 
         frames=300 returns a browser-sized animation bundle on a uniform grid.
         frames=None keeps myokit's native adaptive steps (~600-750 samples),
         which is what gets written to the Tiger Data hypertable.
+
+        mode: 0 (endocardial, the CiPA v1.0 default and the only mode the
+        qNet classifier is validated against), 1 (epicardial) or 2
+        (mid-myocardial / M cell). Each starts prepacing from the same
+        pristine S0 and converges to its own periodic steady state, the same
+        way different drugs already do.
         """
-        self._reset()
+        self._reset(mode)
         if herg_pars is not None and conc_nM > 0:
             for k, v in herg_pars.items():
                 self.sim.set_constant('ikr.' + k, v)

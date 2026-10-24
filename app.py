@@ -161,6 +161,56 @@ def api_explain():
     return jsonify(out)
 
 
+@app.post('/api/context')
+def api_context():
+    """Two sentences orienting the viewer in the current view -- what
+    they're looking at, scaled from whole heart down to a single myocyte
+    (and which transmural layer, once that's selected), plus what's
+    currently chosen. Narrates the VIEW; /api/explain narrates the VERDICT.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    drug = body.get('drug', '')
+    if drug not in SWEEP['drugs']:
+        return jsonify({'error': f'unknown drug {drug!r}'}), 404
+    stage = body.get('stage', 'heart')
+    mode_label = body.get('mode_label')
+    e = dose_entry(drug, body.get('dose', 1))
+    d = SWEEP['drugs'][drug]
+    out = explain_mod.explain_context(
+        drug=drug, dose_mult=round(float(e['mult']), 2), conc_nM=e['conc_nM'],
+        fda_label=d['label'], risk=risk_for(d['qnet_mean']), stage=stage,
+        mode_label=mode_label)
+    return jsonify(out)
+
+
+@app.post('/api/narrate')
+def api_narrate():
+    """Gemini reads the already-computed verdict explanation aloud.
+
+    Same hard rule as /api/explain: handed a finished sentence of English
+    text and computes nothing else -- it cannot change a single number on
+    the page, and generating the audio is strictly downstream of the
+    simulation, never upstream of it.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    drug = body.get('drug', '')
+    if drug not in SWEEP['drugs']:
+        return jsonify({'error': f'unknown drug {drug!r}'}), 404
+    if not explain_mod.available():
+        return jsonify({'error': 'GEMINI_API_KEY not configured'}), 503
+    e = dose_entry(drug, body.get('dose', 1))
+    d = SWEEP['drugs'][drug]
+    text = explain_mod.explain(
+        drug=drug, dose_mult=round(float(e['mult']), 2), conc_nM=e['conc_nM'],
+        block=e['block'], bound=e['peak_bound'], qnet=e['qNet'],
+        dapd90=e['dAPD90'], risk=risk_for(d['qnet_mean']),
+        repol_failure=e['repol_failure'])['text']
+    audio = explain_mod.speak(text)
+    if audio is None:
+        return jsonify({'error': 'narration unavailable'}), 502
+    return app.response_class(audio, mimetype='audio/wav')
+
+
 @app.post('/api/ask')
 def api_ask():
     body = request.get_json(force=True, silent=True) or {}

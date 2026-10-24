@@ -14,6 +14,8 @@ import re
 
 MODEL = os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash')
 FALLBACK_MODEL = 'gemini-3.5-flash-lite'
+TTS_MODEL = os.environ.get('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts')
+TTS_VOICE = os.environ.get('GEMINI_TTS_VOICE', 'Kore')
 
 PROMPT = """You are a cardiac safety pharmacologist. Explain in exactly two sentences
 why this compound received its risk classification. Reference the specific channels.
@@ -25,6 +27,33 @@ hERG channels drug-bound at peak: {bound:.0%}
 qNet: {qnet:.4f} uC/uF (drug-free control: 0.0781)
 APD90 change: {dapd}
 Classification: {risk}"""
+
+CONTEXT_PROMPT = """You are guiding a first-time viewer through a cardiac drug-safety
+simulator. Write exactly two sentences orienting them in what they are
+currently looking at and what is currently selected. Plain language, no
+jargon dump, no hedging, do not mention being an AI.
+
+Current view: {view_desc}
+Compound selected: {drug} at {dose}x therapeutic Cmax ({conc:.1f} nM)
+FDA CiPA label for this compound: {fda_label}
+Computed risk at this dose: {risk}"""
+
+VIEW_DESC = {
+    'heart': ('the whole heart, rendered as an illustrative organ-level '
+              'view driven by a single simulated cell -- not a tissue '
+              'simulation'),
+    'cell': ('a single human ventricular myocyte (one heart muscle cell), '
+             'the actual unit the ORd-CiPA v1.0 model simulates'),
+}
+
+MODE_VIEW_SUFFIX = {
+    'Endocardial': ' (the innermost ventricular wall layer)',
+    'Epicardial': ' (the outermost ventricular wall layer, shortest action '
+                  'potential of the three)',
+    'Mid-myocardial': (' (the "M cell" layer in the wall’s middle, the '
+                       'longest action potential of the three and the most '
+                       'arrhythmogenic)'),
+}
 
 QUERY_SCHEMA = {
     'type': 'object',
@@ -119,6 +148,94 @@ def explain(drug, dose_mult, conc_nM, block, bound, qnet, dapd90, risk,
     result = {'text': out, 'source': source}
     _cache[key] = result
     return result
+
+
+_context_cache = {}
+
+
+def _context_template(ctx):
+    """Offline fallback for the left-column view narration."""
+    return (f"You're looking at {ctx['view_desc']}. {ctx['drug'].capitalize()} "
+            f"is selected at {ctx['dose']}x Cmax ({ctx['conc']:.1f} nM) -- "
+            f"FDA CiPA label {ctx['fda_label']}, computed risk {ctx['risk']} "
+            f"at this dose.")
+
+
+def explain_context(drug, dose_mult, conc_nM, fda_label, risk, stage,
+                     mode_label=None):
+    """Two sentences orienting the viewer in the current view: what scale
+    they're looking at (whole heart vs. single myocyte, optionally which
+    transmural layer) and what's currently selected (drug, dose, risk).
+
+    This narrates the VIEW. explain() above narrates the VERDICT. Same hard
+    rule as explain(): handed only numbers and labels already computed
+    elsewhere, never touches the simulation.
+
+    Cached per (stage, mode, drug, dose) so switching views/dragging the
+    dose slider never spams the API.
+    """
+    key = (stage, mode_label, drug, round(float(dose_mult), 2))
+    if key in _context_cache:
+        return _context_cache[key]
+
+    view_desc = VIEW_DESC.get(stage, VIEW_DESC['heart'])
+    if stage == 'cell' and mode_label:
+        view_desc += MODE_VIEW_SUFFIX.get(mode_label, '')
+
+    ctx = {'view_desc': view_desc, 'drug': drug, 'dose': dose_mult,
+           'conc': conc_nM, 'fda_label': fda_label, 'risk': risk}
+
+    out, source = None, 'template'
+    if available():
+        resp = _generate(CONTEXT_PROMPT.format(**ctx))
+        if resp is not None and getattr(resp, 'text', None):
+            out, source = resp.text.strip(), MODEL
+
+    if out is None:
+        out = _context_template(ctx)
+
+    result = {'text': out, 'source': source}
+    _context_cache[key] = result
+    return result
+
+
+_audio_cache = {}
+
+
+def speak(text):
+    """Gemini reads an already-generated sentence aloud. Returns WAV bytes,
+    or None if unavailable/failed -- same hard rule as explain() and
+    explain_context(): handed a finished sentence of English, computes
+    nothing else, and the demo has to survive this call failing.
+
+    Cached per text string so repeated plays of the same explanation don't
+    re-spend API quota.
+    """
+    if not available():
+        return None
+    if text in _audio_cache:
+        return _audio_cache[text]
+
+    try:
+        from google.genai import types
+        client = _get_client()
+        resp = client.models.generate_content(
+            model=TTS_MODEL, contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=['AUDIO'],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=TTS_VOICE)))))
+        part = resp.candidates[0].content.parts[0]
+        if part.inline_data is None:
+            return None
+        audio = part.inline_data.data
+    except Exception:                                  # noqa: BLE001
+        return None
+
+    _audio_cache[text] = audio
+    return audio
 
 
 # Ordered: an explicit multiplier wins over the baseline words, because

@@ -1,6 +1,6 @@
 // charts.js — vanilla Canvas. No charting library, no build step.
 
-import { BEAT_MS, clamp01 } from './signals.js';
+import { BEAT_MS, clamp01, MODES, MODE_SHORT, MODE_COLOUR } from './signals.js';
 
 const CSS = getComputedStyle(document.documentElement);
 const col = n => CSS.getPropertyValue(n).trim() || '#888';
@@ -263,4 +263,42 @@ export function drawStrip(canvas, validation, highlight) {
       ctx.fillText(d.name, x, box.y + 22);
     }
   }
+}
+
+/**
+ * Transmural heterogeneity: Endo/Epi/Mid action potentials for the current
+ * drug+dose, overlaid. This is the real mechanism behind torsade de
+ * pointes — dispersion between these layers creates the re-entry substrate
+ * — not a tissue simulation, just three real single-cell solves shown
+ * together instead of one.
+ */
+export function drawTransmural(canvas, byMode, tNow) {
+  const { ctx, w, h } = prep(canvas);
+  const box = { x0: 46, y0: 12, x1: w - 10, y1: h - 26 };
+  const yMin = -95, yMax = 50;
+  axes(ctx, box, { xMax: BEAT_MS, yMin, yMax,
+                   yTicks: [-80, -40, 0, 40], yLabel: 'mV', xLabel: 'ms' });
+
+  for (const mode of MODES) {
+    const b = byMode[mode];
+    if (!b) continue;
+    trace(ctx, box, b.frames.t, b.frames.V, BEAT_MS, yMin, yMax,
+          MODE_COLOUR[mode], mode === 0 ? 2.2 : 1.8);
+  }
+
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  MODES.forEach((mode, i) => {
+    ctx.fillStyle = MODE_COLOUR[mode];
+    ctx.fillText(`— ${MODE_SHORT[mode]}`, box.x0 + i * 70, box.y0);
+  });
+
+  const px = box.x0 + clamp01(tNow / BEAT_MS) * (box.x1 - box.x0);
+  ctx.strokeStyle = col('--playhead');
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px, box.y0 + 14);
+  ctx.lineTo(px, box.y1);
+  ctx.stroke();
 }

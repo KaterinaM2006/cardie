@@ -6,104 +6,143 @@
 <title>Cardie</title>
 <style>
   :root{
-    --bg:#070810; --panel:#0e1020; --panel2:#141730; --line:#23274a;
-    --text:#e8eaf6; --muted:#8c93b8; --grid:#5a63a0;
-    --accent:#ffc448; --accent2:#5fd38d; --ghost:#5a6192; --shade:#5fd38d22;
-    --playhead:#ff6b9d; --thresh:#8c93b8; --danger:#ff5470;
-    --high:#ff5470; --interm:#ffb545; --low:#49d6a0;
+    --bg:#eef2fb; --panel:#ffffff; --panel2:#f3f5fc; --line:#e1e6f5;
+    --text:#131a3a; --muted:#6b7399; --grid:#c9d0ea;
+    --accent:#2f6bff; --accent2:#1fae6e; --ghost:#b9c0de; --shade:#1fae6e22;
+    --playhead:#ff4f81; --thresh:#8891b8; --danger:#e23a56;
+    --high:#e23a56; --interm:#e8932a; --low:#1fae6e;
+    --shadow:0 1px 2px rgba(19,26,58,.06), 0 6px 20px rgba(19,26,58,.06);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{
-    background:var(--bg); color:var(--text);
+    background:
+      radial-gradient(900px 500px at 70% 10%, #e3ecff 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
     font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
     display:flex; flex-direction:column; min-height:100vh;
   }
-  h1,h2,h3{margin:0; font-weight:600}
+  h1,h2,h3{margin:0; font-weight:700}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
   header{
     display:flex; align-items:center; gap:22px; flex-wrap:wrap;
-    padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel);
+    padding:14px 22px; border-bottom:1px solid var(--line); background:var(--panel);
   }
-  .brand{font-size:19px; letter-spacing:.22em; font-weight:700}
+  .brandmark{display:flex; align-items:center; gap:11px}
+  .brand-badge{
+    width:38px; height:38px; border-radius:50%; flex:none;
+    background:linear-gradient(160deg,#eaf0ff,#dde7ff);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .brand{font-size:18px; letter-spacing:.04em; font-weight:800}
   .brand span{color:var(--accent)}
   .tagline{color:var(--muted); font-size:12px; max-width:30ch; line-height:1.35}
-  header label{color:var(--muted); font-size:12px; text-transform:uppercase;
-               letter-spacing:.08em; margin-right:8px}
+  header label{color:var(--muted); font-size:11px; text-transform:uppercase;
+               letter-spacing:.08em; margin-right:8px; display:block; margin-bottom:3px}
   select,input[type=text]{
-    background:var(--panel2); color:var(--text); border:1px solid var(--line);
-    border-radius:7px; padding:7px 10px; font:inherit;
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:8px 11px; font:inherit;
   }
-  input[type=range]{width:230px; accent-color:var(--accent); vertical-align:middle}
-  .dose-readout{font-size:17px; font-weight:700; min-width:11ch; display:inline-block}
+  select:focus,input:focus{outline:2px solid #c9d8ff; outline-offset:1px}
+  input[type=range]{width:220px; accent-color:var(--accent); vertical-align:middle}
+  .dose-readout{font-size:16px; font-weight:800; min-width:11ch; display:inline-block}
   .conc{color:var(--muted); font-size:12px}
   button{
-    background:var(--panel2); color:var(--text); border:1px solid var(--line);
-    border-radius:7px; padding:7px 12px; font:inherit; cursor:pointer;
+    background:var(--panel); color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:8px 13px; font:inherit; font-weight:600; cursor:pointer;
   }
-  button:hover{border-color:var(--accent)}
+  button:hover{border-color:var(--accent); color:var(--accent)}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn-primary:hover{color:#fff; opacity:.92}
   .grow{flex:1}
 
-  main{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px;
-       padding:14px 20px; align-items:start}
+  main{display:grid; grid-template-columns:272px minmax(0,1fr) 336px; gap:16px;
+       padding:16px 22px; align-items:start}
   .card{background:var(--panel); border:1px solid var(--line);
-        border-radius:12px; padding:12px}
-  .card h3{font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-           color:var(--muted); margin-bottom:8px}
+        border-radius:14px; padding:14px; box-shadow:var(--shadow)}
+  .card h3{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+           color:var(--muted); margin-bottom:9px; font-weight:700}
 
-  #cellwrap{position:relative; height:420px; padding:0; overflow:hidden}
+  /* ---- left context column ---- */
+  .ctx-kicker{font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+              color:var(--accent); font-weight:800; margin-bottom:6px}
+  .ctx-title{font-size:22px; line-height:1.18; font-weight:800; margin-bottom:10px}
+  #ctxText{font-size:13px; line-height:1.6; color:var(--muted); min-height:4.8em}
+  .ctx-src{font-size:10px; color:var(--muted); margin-top:8px}
+  .badge-card{display:flex; gap:11px; align-items:flex-start; padding:12px;
+             border:1px solid var(--line); border-radius:12px; margin-top:10px}
+  .badge-icon{width:34px; height:34px; border-radius:50%; flex:none;
+             background:#eaf0ff; display:flex; align-items:center; justify-content:center}
+  .badge-card b{display:block; font-size:12.5px}
+  .badge-card span{font-size:11.5px; color:var(--muted)}
+
+  .model-card dl{display:grid; grid-template-columns:auto 1fr; gap:5px 10px;
+                 font-size:11.5px; margin:0}
+  .model-card dt{color:var(--muted); white-space:nowrap}
+  .model-card dd{margin:0}
+  .model-card .scope{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
+                     font-size:11px; color:var(--muted); line-height:1.5}
+
+  .glossary summary{cursor:pointer; font-size:12px; font-weight:700;
+                    padding:8px 0; list-style:none}
+  .glossary summary::-webkit-details-marker{display:none}
+  .glossary summary::before{content:'+'; color:var(--accent); font-weight:800;
+                            display:inline-block; width:14px}
+  .glossary details[open] summary::before{content:'\2212'}
+  .glossary details{border-top:1px solid var(--line)}
+  .glossary details:first-child{border-top:none}
+  .glossary dl{display:grid; grid-template-columns:auto 1fr; gap:5px 9px;
+               font-size:11.5px; margin:0 0 9px 14px}
+  .glossary dt{color:var(--accent); font-weight:700; white-space:nowrap}
+  .glossary dd{margin:0; color:var(--muted); line-height:1.45}
+  .glossary p{font-size:11.5px; color:var(--muted); line-height:1.5;
+             margin:0 0 9px 14px}
+
+  .drug-card dl{display:grid; grid-template-columns:auto 1fr; gap:6px 10px;
+               font-size:12px; margin:0}
+  .drug-card dt{color:var(--muted); white-space:nowrap; padding-top:1px}
+  .drug-card dd{margin:0; line-height:1.4}
+  .drug-card .status{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
+                     font-size:11px; color:var(--muted); line-height:1.5}
+
+  /* ---- centre ---- */
+  #cellwrap{position:relative; height:400px; padding:0; overflow:hidden}
   #cell{width:100%; height:100%; display:block; cursor:grab;
-        background:radial-gradient(ellipse at 50% 45%, #141734 0%, #080a16 72%)}
+        background:radial-gradient(ellipse at 50% 45%, #eef3ff 0%, #e4ebfb 72%)}
   #cell:active{cursor:grabbing}
   .overlay{position:absolute; pointer-events:none}
-  .cell-title{top:10px; left:14px; font-size:11px; letter-spacing:.14em;
-              text-transform:uppercase; color:var(--muted)}
-  .cell-sub{top:28px; left:14px; font-size:11px; color:var(--muted);
-            max-width:52ch; line-height:1.45}
   .cell-hint{bottom:10px; left:14px; font-size:11px; color:var(--muted)}
   .legend{bottom:10px; right:14px; text-align:right; font-size:11px; color:var(--muted)}
   .legend i{display:inline-block; width:9px; height:9px; border-radius:50%;
             margin-right:5px}
   #banner{
     bottom:34px; left:50%; transform:translateX(-50%);
-    background:#2a0a16ee; border:1px solid var(--danger); color:var(--danger);
-    padding:10px 18px; border-radius:9px; font-weight:700; letter-spacing:.1em;
+    background:#fdeced; border:1px solid var(--danger); color:var(--danger);
+    padding:10px 18px; border-radius:9px; font-weight:700; letter-spacing:.06em;
     display:none; text-align:center;
   }
   #banner small{display:block; font-weight:400; letter-spacing:0;
                 color:var(--text); opacity:.75; margin-top:3px}
   #back{
     position:absolute; top:10px; right:14px; z-index:6; display:none;
-    background:#0e1020cc; backdrop-filter:blur(4px);
+    background:#ffffffcc; backdrop-filter:blur(4px);
   }
   #enter{
-    bottom:30px; left:50%; transform:translateX(-50%); text-align:center;
+    bottom:26px; left:50%; transform:translateX(-50%); text-align:center;
   }
   .enter-label{
-    font-size:11px; letter-spacing:.22em; color:var(--accent);
-    font-weight:700;
+    font-size:11px; letter-spacing:.14em; font-weight:700;
   }
   .enter-label small{
-    display:block; letter-spacing:.04em; font-weight:400; font-size:11px;
-    color:var(--muted); margin-top:3px;
+    display:block; letter-spacing:.02em; font-weight:400; font-size:11px;
+    opacity:.85; margin-top:1px;
   }
-  .enter-ring{
-    width:30px; height:30px; margin:0 auto 9px; border-radius:50%;
-    border:1.5px solid var(--accent); opacity:.5;
-    animation:ping 1.9s cubic-bezier(.2,.6,.3,1) infinite;
-  }
-  @keyframes ping{
-    0%{transform:scale(.55); opacity:.9}
-    70%{transform:scale(1.35); opacity:0}
-    100%{opacity:0}
-  }
-  @media (prefers-reduced-motion: reduce){
-    .enter-ring{animation:none; opacity:.6}
-  }
+  .enter-ring{display:none}
   #tip{
     position:absolute; display:none; pointer-events:none; z-index:5;
-    background:#05060fe8; border:1px solid var(--line); border-radius:7px;
+    background:#131a3af2; color:#fff; border-radius:7px;
     padding:6px 9px; font-size:11px; white-space:nowrap;
   }
   .transport{display:flex; align-items:center; gap:10px; margin-top:10px}
@@ -114,27 +153,28 @@
 
   .verdict{text-align:center; padding:14px 12px; border-radius:10px;
            border:1px solid var(--line)}
-  .verdict .cls{font-size:26px; font-weight:800; letter-spacing:.04em}
+  .verdict .cls{font-size:26px; font-weight:800; letter-spacing:.02em}
   .verdict .sub{font-size:11px; color:var(--muted); margin-top:3px}
-  .verdict.HIGH{background:#2a0c1a; border-color:var(--high)}
+  .verdict.HIGH{background:#fdeced; border-color:var(--high)}
   .verdict.HIGH .cls{color:var(--high)}
-  .verdict.INTERMEDIATE{background:#2a1e08; border-color:var(--interm)}
+  .verdict.INTERMEDIATE{background:#fdf3e4; border-color:var(--interm)}
   .verdict.INTERMEDIATE .cls{color:var(--interm)}
-  .verdict.LOW{background:#07241c; border-color:var(--low)}
+  .verdict.LOW{background:#e9f8f0; border-color:var(--low)}
   .verdict.LOW .cls{color:var(--low)}
 
   .metrics{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px}
   .metric{background:var(--panel2); border-radius:9px; padding:9px 10px}
-  .metric .k{font-size:10px; color:var(--muted); letter-spacing:.08em;
+  .metric .k{font-size:10px; color:var(--muted); letter-spacing:.06em;
              text-transform:uppercase}
-  .metric .v{font-size:18px; font-weight:700; font-family:ui-monospace,monospace}
+  .metric .v{font-size:18px; font-weight:800; font-family:ui-monospace,monospace}
   .metric .n{font-size:10px; color:var(--muted)}
 
   .bar{display:grid; grid-template-columns:42px 1fr 38px; gap:7px;
        align-items:center; margin-bottom:5px; font-size:12px}
-  .bar .track{height:8px; background:var(--panel2); border-radius:4px;
-              overflow:hidden}
-  .bar .fill{height:100%; border-radius:4px; transition:width .12s linear}
+  .bar .track{display:block; height:8px; background:var(--panel2);
+              border-radius:4px; overflow:hidden}
+  .bar .fill{display:block; height:100%; border-radius:4px;
+             transition:width .12s linear}
   .bar .pc{text-align:right; color:var(--muted);
            font-family:ui-monospace,monospace; font-size:11px}
 
@@ -143,24 +183,10 @@
   .why-row{display:flex; align-items:center; gap:8px; margin-top:8px}
   #narrate{font-size:12px; padding:5px 10px}
   #narrate:disabled{opacity:.4; cursor:default}
-  #narrate:disabled:hover{border-color:var(--line)}
+  #narrate:disabled:hover{border-color:var(--line); color:var(--text)}
   #narrateStatus{font-size:11px; color:var(--muted)}
   #ask{width:100%; margin-bottom:7px}
   #askout{font-size:12px; color:var(--muted); min-height:16px}
-
-  .model-card dl{display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
-                 font-size:12px; margin:0}
-  .model-card dt{color:var(--muted); white-space:nowrap}
-  .model-card dd{margin:0}
-  .model-card .scope{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
-                     font-size:11px; color:var(--muted); line-height:1.5}
-
-  .drug-card dl{display:grid; grid-template-columns:auto 1fr; gap:6px 10px;
-               font-size:12px; margin:0}
-  .drug-card dt{color:var(--muted); white-space:nowrap; padding-top:1px}
-  .drug-card dd{margin:0; line-height:1.4}
-  .drug-card .status{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
-                     font-size:11px; color:var(--muted); line-height:1.5}
 
   .xd-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr));
            gap:8px; margin-top:10px}
@@ -172,29 +198,34 @@
            overflow:hidden; text-overflow:ellipsis}
   .xd-v{font-size:10px; font-family:ui-monospace,monospace; margin-top:1px}
 
+  .transmural-legend{display:flex; gap:14px; margin-top:8px; font-size:11px}
+  .transmural-legend span{display:flex; align-items:center; gap:5px}
+  .transmural-legend i{width:16px; height:2.5px; border-radius:2px; display:inline-block}
+  .transmural-metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px}
+
   .validation{grid-column:1/-1}
   .vgrid{display:grid; grid-template-columns:auto auto 1fr; gap:20px;
          align-items:start}
   table{border-collapse:collapse; font-size:12px}
   th,td{padding:5px 10px; text-align:center; border:1px solid var(--line)}
-  th{color:var(--muted); font-weight:500; font-size:10px;
-     text-transform:uppercase; letter-spacing:.07em}
-  td.hit{background:#0d2b20; color:var(--low); font-weight:700}
-  td.miss{background:#2b0d16; color:var(--high); font-weight:700}
-  td.zero{color:#3a3f63}
+  th{color:var(--muted); font-weight:600; font-size:10px;
+     text-transform:uppercase; letter-spacing:.06em}
+  td.hit{background:#e9f8f0; color:var(--low); font-weight:700}
+  td.miss{background:#fdeced; color:var(--high); font-weight:700}
+  td.zero{color:#aab1d4}
   .score{font-size:24px; font-weight:800; font-family:ui-monospace,monospace}
   .score small{font-size:11px; color:var(--muted); font-weight:400;
                letter-spacing:0; display:block}
   #strip{width:100%; height:92px; display:block}
   .note{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5}
-  .pill{display:inline-block; padding:2px 7px; border-radius:20px;
+  .pill{display:inline-block; padding:2px 8px; border-radius:20px;
         border:1px solid var(--line); font-size:10px; color:var(--muted);
-        margin-right:5px}
-  .pill.on{border-color:var(--accent2); color:var(--accent2)}
-  footer{padding:10px 20px 20px; color:var(--muted); font-size:11px;
+        margin-right:5px; font-weight:600}
+  .pill.on{border-color:var(--accent2); color:var(--accent2); background:#e9f8f0}
+  footer{padding:12px 22px 22px; color:var(--muted); font-size:11px;
          line-height:1.6; border-top:1px solid var(--line); margin-top:4px}
 
-  @media (max-width:1040px){
+  @media (max-width:1240px){
     main{grid-template-columns:1fr}
     .vgrid{grid-template-columns:1fr}
   }
@@ -206,9 +237,17 @@
 <body>
 
 <header>
-  <div>
-    <div class="brand">CARD<span>IE</span></div>
-    <div class="tagline">In-silico proarrhythmia screen on the FDA's ORd-CiPA v1.0 myocyte</div>
+  <div class="brandmark">
+    <div class="brand-badge">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path d="M2 13h4l2-7 4 14 3-10 2 3h5" stroke="#2f6bff" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand">CARD<span>IE</span></div>
+      <div class="tagline">In-silico proarrhythmia screen on the FDA's ORd-CiPA v1.0 myocyte</div>
+    </div>
   </div>
   <div>
     <label for="drug">Compound</label>
@@ -225,21 +264,125 @@
 </header>
 
 <main>
+  <!-- ======= LEFT: what you're looking at, Gemini-narrated, stage-aware ======= -->
+  <div>
+    <div class="card">
+      <div class="ctx-kicker" id="ctxKicker">Human heart</div>
+      <div class="ctx-title" id="ctxTitle">Whole-heart view</div>
+      <div id="ctxText">&mdash;</div>
+      <div class="ctx-src">Generated for the current view, compound and dose
+        &mdash; changes with everything you click. <span class="pill" id="ctxSrc"></span></div>
+    </div>
+
+    <div class="badge-card">
+      <div class="badge-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M2 13h4l2-7 4 14 3-10 2 3h5" stroke="#2f6bff" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div><b>ORd-CiPA v1.0</b><span>Human ventricular myocyte model</span></div>
+    </div>
+    <div class="badge-card">
+      <div class="badge-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <circle cx="9" cy="8" r="3" stroke="#2f6bff" stroke-width="2"/>
+          <circle cx="17" cy="9" r="2.4" stroke="#2f6bff" stroke-width="2"/>
+          <path d="M3 19c0-3 2.5-5 6-5s6 2 6 5M14 19c.3-2.2 2-4 5-4"
+                stroke="#2f6bff" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div><b>FDA CiPA</b><span>12 training compounds</span></div>
+    </div>
+
+    <div class="card model-card" style="margin-top:12px">
+      <h3>Model &amp; data sources</h3>
+      <dl id="modelDl"></dl>
+      <div class="scope" id="modelScope"></div>
+    </div>
+
+    <div class="card glossary" style="margin-top:12px">
+      <h3>What do these terms mean?</h3>
+      <details open>
+        <summary>Cell model &amp; protocol</summary>
+        <p><b>O'Hara&ndash;Rudy / ORd-CiPA</b> is a mathematical model of a
+          single human heart-muscle cell, built from real patch-clamp
+          measurements. It doesn't simulate a whole heart &mdash; it solves
+          the equations for one cell's electrical cycle, many times over.</p>
+        <dl>
+          <dt>Endo / Epi / Mid</dt><dd>the three layers of the ventricular
+            wall (inner, outer, middle). Cells differ between them &mdash;
+            see the Transmural heterogeneity panel.</dd>
+          <dt>Cycle length</dt><dd>time between simulated heartbeats. 2000&nbsp;ms
+            is a deliberately slow 30&nbsp;bpm, the FDA's own CiPA protocol.</dd>
+          <dt>Pre-paced beats</dt><dd>the simulation runs 400 beats before
+            recording, so the cell settles into its steady rhythm instead of
+            being captured mid-"warm-up".</dd>
+        </dl>
+      </details>
+      <details>
+        <summary>hERG &amp; drug binding</summary>
+        <p><b>hERG</b> is a potassium channel gene; it's the single most
+          common place a drug accidentally causes dangerous heart rhythms,
+          because blocking it slows the heart's electrical "reset" between
+          beats.</p>
+        <p>A <b>Markov binding model</b> describes how a drug molecule
+          attaches to and detaches from hERG over time. Some drugs bind and
+          release quickly; others get briefly "trapped" inside the channel,
+          which is the more dangerous pattern.</p>
+      </details>
+      <details>
+        <summary>Ion channels (INa, ICaL, Ito&hellip;)</summary>
+        <p>Each channel is a separate "gate" in the cell membrane that lets
+          one type of ion flow in or out. Together they draw the
+          action-potential shape in the chart above.</p>
+        <dl>
+          <dt>INa</dt><dd>fast sodium &mdash; the initial spike of each beat.</dd>
+          <dt>INaL</dt><dd>late sodium &mdash; a small lingering leak; if it
+            doesn't fade, the cell stays activated too long.</dd>
+          <dt>ICaL</dt><dd>L-type calcium &mdash; shapes the plateau and
+            triggers the muscle to actually contract.</dd>
+          <dt>Ito</dt><dd>transient outward potassium &mdash; the brief early
+            "notch" right after the spike.</dd>
+          <dt>IKr / IKs</dt><dd>rapid/slow delayed-rectifier potassium
+            &mdash; the main "reset" currents; hERG encodes IKr.</dd>
+          <dt>IK1</dt><dd>inward-rectifier potassium &mdash; holds the cell
+            at rest between beats.</dd>
+        </dl>
+      </details>
+      <details>
+        <summary>qNet &amp; &Delta;APD90 (the metrics)</summary>
+        <dl>
+          <dt>qNet</dt><dd>the net electrical charge moved across the
+            membrane by six currents over one beat. The single number this
+            project uses to predict risk &mdash; more negative means more
+            risk.</dd>
+          <dt>APD90</dt><dd>how long the cell stays electrically activated
+            before 90% resetting. A prolonged APD90 is the classic
+            early-warning sign of risk, though a less reliable predictor
+            than qNet (shown elsewhere on this page).</dd>
+          <dt>FDA CiPA</dt><dd>the FDA's Comprehensive in vitro
+            Proarrhythmia Assay initiative &mdash; the regulatory framework
+            this whole simulation implements.</dd>
+        </dl>
+      </details>
+    </div>
+  </div>
+
+  <!-- ======= CENTRE: the simulation ======= -->
   <div>
     <div class="card" id="cellwrap">
       <canvas id="cell"></canvas>
-      <div class="overlay cell-title" id="stageTitle">Human heart</div>
-      <div class="overlay cell-sub" id="stageSub"></div>
       <button id="back" title="back to the whole heart">&larr; Heart</button>
       <div class="overlay" id="enter">
-        <div class="enter-ring"></div>
-        <div class="enter-label">CLICK THE HEART<small>descend to a single ventricular myocyte</small></div>
+        <div class="btn-primary" style="display:inline-block; border-radius:8px; padding:8px 16px; font-weight:700">&#9654; Click the heart</div>
+        <div class="enter-label"><small>descend to a single ventricular myocyte</small></div>
       </div>
       <div class="overlay legend" id="ionLegend" style="display:none">
         <div><i style="background:#ffc048"></i>Na<sup>+</sup>
-             <i style="background:#5fd38d;margin-left:8px"></i>Ca<sup>2+</sup>
-             <i style="background:#6ec3f0;margin-left:8px"></i>K<sup>+</sup></div>
-        <div style="margin-top:3px"><i style="background:#c8ccd8"></i>drug-bound hERG</div>
+             <i style="background:#1fae6e;margin-left:8px"></i>Ca<sup>2+</sup>
+             <i style="background:#2f6bff;margin-left:8px"></i>K<sup>+</sup></div>
+        <div style="margin-top:3px"><i style="background:#8891b8"></i>drug-bound hERG</div>
       </div>
       <div class="overlay cell-hint" id="cellHint" style="display:none">drag to rotate &middot; hover a channel &middot;
         faded cell behind is the drug-free control, in sync</div>
@@ -271,6 +414,18 @@
     </div>
 
     <div class="card" style="margin-top:10px">
+      <h3>Transmural heterogeneity</h3>
+      <div class="note">Endo/Epi/Mid are three real cell-layer solves, not a
+        tissue model. Dispersion between them &mdash; especially how much
+        longer the M cell stays depolarised &mdash; is the actual re-entry
+        mechanism behind torsade de pointes. Illustrative alongside the
+        validated qNet classification, not a replacement for it.</div>
+      <div class="chart" style="margin-top:8px"><canvas id="transmural"></canvas></div>
+      <div class="transmural-legend" id="transLegend"></div>
+      <div class="transmural-metrics" id="transMetrics"></div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
       <h3>Cross-drug comparison <span class="pill" id="tigerSrc"></span></h3>
       <div class="note">Membrane potential of all 12 compounds at one moment
         in the beat, at the current dose. Colour is the same voltage ramp as
@@ -285,14 +440,9 @@
     </div>
   </div>
 
+  <!-- ======= RIGHT: this compound's risk ======= -->
   <div>
-    <div class="card model-card">
-      <h3>Model &amp; data sources</h3>
-      <dl id="modelDl"></dl>
-      <div class="scope" id="modelScope"></div>
-    </div>
-
-    <div class="card drug-card" style="margin-top:12px">
+    <div class="card drug-card">
       <h3>About <span id="drugAboutName"></span></h3>
       <dl id="drugDl"></dl>
       <div class="status" id="drugStatus"></div>
@@ -342,9 +492,8 @@
         <span id="narrateStatus"></span>
       </div>
       <div class="src">Generated from the computed block profile. The language
-        model never touches the numerical path; narration is the browser's
-        own voice reading the finished sentence &mdash; no network call, no
-        account, nothing that can go offline mid-demo.</div>
+        model never touches the numerical path; narration is Gemini reading
+        this same finished sentence aloud, not generating anything new.</div>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -380,10 +529,12 @@
 </main>
 
 <footer>
-  Cell model: O'Hara&ndash;Rudy CiPA v1.0 (Dutta et al. 2017), endocardial,
-  CL 2000 ms, 400 pre-paced beats. Drug binding: Li et al. 2017 dynamic hERG
-  Markov model with the FDA's published per-compound parameters; six further
-  channels blocked by a static Hill equation from Li2017 IC50s.
+  Cell model: O'Hara&ndash;Rudy CiPA v1.0 (Dutta et al. 2017), endocardial by
+  default (transmural Epi/Mid views are additive, not part of the validated
+  classification), CL 2000 ms, 400 pre-paced beats. Drug binding: Li et al.
+  2017 dynamic hERG Markov model with the FDA's published per-compound
+  parameters; six further channels blocked by a static Hill equation from
+  Li2017 IC50s.
   qNet = &int;(I<sub>NaL</sub>+I<sub>CaL</sub>+I<sub>to</sub>+I<sub>Kr</sub>+I<sub>Ks</sub>+I<sub>K1</sub>)dt.
   <strong>Scope: 12 compounds, not 28</strong> &mdash; the fitted dynamic hERG
   binding parameters exist only for the CiPA training set.

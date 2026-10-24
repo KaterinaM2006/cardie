@@ -5,8 +5,9 @@
 // instant and why a dead network at the judging table cannot stall the demo.
 
 import { CellView } from './cell3d.js';
-import { doseBundle, frameAt, BEAT_MS, CHANNELS, membraneColour } from './signals.js';
-import { drawAP, drawNet, drawStrip } from './charts.js';
+import { doseBundle, frameAt, BEAT_MS, CHANNELS, membraneColour,
+         MODES, MODE_LABEL, MODE_SHORT, MODE_COLOUR } from './signals.js';
+import { drawAP, drawNet, drawStrip, drawTransmural } from './charts.js';
 
 const $ = id => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -16,10 +17,10 @@ const S = {
   drug: 'dofetilide', dose: 1,
   t: 0, playing: !reduceMotion, speed: 0.25,
   bundle: null, control: null,
-  xdT: 150,
+  xdT: 150, stage: 'heart',
 };
 
-let cell, lastTs = 0, whyTimer = 0;
+let cell, lastTs = 0, whyTimer = 0, ctxTimer = 0;
 
 // ---- data ------------------------------------------------------------------
 
@@ -41,15 +42,15 @@ async function boot() {
   sel.value = S.drug;
 
   const integ = S.sweep.integrations || {};
-  S.speech = 'speechSynthesis' in window;
+  S.gemini = !!integ.gemini;
   $('integrations').innerHTML =
     `<span class="pill ${integ.gemini ? 'on' : ''}">Gemini ${integ.gemini ? 'live' : 'offline'}</span>` +
     `<span class="pill ${integ.tiger ? 'on' : ''}">Tiger Data ${integ.tiger ? 'live' : 'cached'}</span>` +
-    `<span class="pill ${S.speech ? 'on' : ''}">Narration ${S.speech ? 'browser' : 'unsupported'}</span>`;
+    `<span class="pill ${integ.gemini ? 'on' : ''}">Narration ${integ.gemini ? 'live' : 'offline'}</span>`;
 
   cell = new CellView($('cell'), { onHover: showTip, onModeChange: setStage });
 
-  $('narrate').disabled = !S.speech;
+  $('narrate').disabled = !S.gemini;
   renderModelCard();
   renderValidation();
   selectDrug(S.drug);
@@ -76,7 +77,9 @@ function refresh() {
   cell.heart.setWaveform(S.bundle.frames);
   renderSidebar();
   drawStrip($('strip'), S.validation, S.drug);
+  renderTransmural();
   queueWhy();
+  queueContext();
   refreshCrossDrug();
 }
 
@@ -156,7 +159,33 @@ function renderSidebar() {
   $('banner').style.display = b.repol_failure ? 'block' : 'none';
 }
 
-// ---- Gemini ----------------------------------------------------------------
+// ---- transmural heterogeneity -----------------------------------------------
+
+function renderTransmural() {
+  const byMode = {};
+  for (const mode of MODES) byMode[mode] = doseBundle(S.sweep, S.drug, S.dose, mode);
+  S.byMode = byMode;
+
+  $('transLegend').innerHTML = MODES.map(m =>
+    `<span><i style="background:${MODE_COLOUR[m]}"></i>${MODE_LABEL[m]}</span>`).join('');
+
+  const apdText = b => b.repol_failure ? 'fail' : (b.APD90 == null ? '—' : `${b.APD90.toFixed(0)} ms`);
+  const epi = byMode[1], mid = byMode[2];
+  const dispersion = (!epi.repol_failure && !mid.repol_failure
+                      && epi.APD90 != null && mid.APD90 != null)
+    ? mid.APD90 - epi.APD90 : null;
+
+  $('transMetrics').innerHTML = MODES.map(m => `
+    <div class="metric">
+      <div class="k" style="color:${MODE_COLOUR[m]}">${MODE_SHORT[m]} APD90</div>
+      <div class="v mono">${apdText(byMode[m])}</div>
+    </div>`).join('') +
+    `<div class="note" style="grid-column:1/-1">Transmural dispersion
+      (Mid − Epi): <strong class="mono">${dispersion == null ? '—' : `${dispersion >= 0 ? '+' : ''}${dispersion.toFixed(0)} ms`}</strong>
+      ${dispersion != null && dispersion > 150 ? '— wide dispersion, the substrate re-entrant arrhythmias need.' : ''}</div>`;
+}
+
+// ---- Gemini explanation (the VERDICT) ---------------------------------------
 
 function queueWhy() {
   clearTimeout(whyTimer);
@@ -182,31 +211,86 @@ function queueWhy() {
   }, 280);
 }
 
-// ---- narration (Web Speech API) ---------------------------------------------
+// ---- Gemini context narration (the VIEW) ------------------------------------
 //
-// The browser's own voice reads the text already on screen. No network
-// call, no key, no account: speechSynthesis is native to the browser, so
-// this can never be the thing that breaks at a judging table.
+// Separate from queueWhy(): this narrates what's on screen (whole heart vs.
+// single myocyte, which drug/dose is selected), and reacts to stage changes
+// (clicking into the cell) as well as drug/dose changes. queueWhy() narrates
+// the risk verdict; this narrates the view itself.
 
-function stopNarration() {
-  if (S.speech) speechSynthesis.cancel();
-  $('narrateStatus').textContent = S.speech ? '' : 'speech synthesis not supported here';
+const CTX_KICKER = { heart: 'Human heart', cell: 'Ventricular myocyte', flying: 'Descending…' };
+const CTX_TITLE = {
+  heart: 'Whole-heart view',
+  cell: 'Single-cell simulation',
+  flying: '',
+};
+
+function queueContext() {
+  clearTimeout(ctxTimer);
+  if (S.stage === 'flying') return;
+  $('ctxKicker').textContent = CTX_KICKER[S.stage] || '';
+  $('ctxTitle').textContent = CTX_TITLE[S.stage] || '';
+  ctxTimer = setTimeout(async () => {
+    const drug = S.drug, dose = Math.round(S.dose * 2) / 2, stage = S.stage;
+    $('ctxText').textContent = '…';
+    try {
+      const r = await fetch('./api/context', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drug, dose, stage }),
+      });
+      const j = await r.json();
+      if (S.drug !== drug || S.stage !== stage) return;
+      $('ctxText').textContent = j.text || '—';
+      $('ctxSrc').textContent = j.source === 'template' ? 'offline' : j.source;
+      $('ctxSrc').className = `pill ${j.source === 'template' ? '' : 'on'}`;
+    } catch {
+      $('ctxText').textContent = 'context unavailable';
+    }
+  }, 280);
 }
 
-function narrate() {
-  if (!S.speech) {
-    $('narrateStatus').textContent = 'speech synthesis not supported in this browser';
+// ---- narration (Gemini reads the Why explanation aloud) --------------------
+//
+// Same hard rule as the Gemini text explanation: this is handed a finished
+// sentence and computes nothing. Cached server-side per explanation text,
+// so re-clicking the same drug/dose doesn't re-spend quota.
+
+let narrateAudio = null;
+
+function stopNarration() {
+  if (narrateAudio) { narrateAudio.pause(); narrateAudio = null; }
+  $('narrateStatus').textContent = S.gemini ? '' : 'offline (no GEMINI_API_KEY)';
+}
+
+async function narrate() {
+  if (!S.gemini) {
+    $('narrateStatus').textContent = 'narration offline (no GEMINI_API_KEY)';
     return;
   }
-  speechSynthesis.cancel();
-  const text = $('why').textContent;
-  if (!text || text === '—' || text === '…') return;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 1.0;
-  utter.onstart = () => { $('narrateStatus').textContent = 'speaking…'; };
-  utter.onend = () => { $('narrateStatus').textContent = ''; };
-  utter.onerror = () => { $('narrateStatus').textContent = 'narration failed'; };
-  speechSynthesis.speak(utter);
+  stopNarration();
+  const drug = S.drug, dose = Math.round(S.dose * 2) / 2;
+  $('narrateStatus').textContent = 'generating…';
+  $('narrate').disabled = true;
+  try {
+    const r = await fetch('./api/narrate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drug, dose }),
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      $('narrateStatus').textContent = j.error || 'narration unavailable';
+      return;
+    }
+    const blob = await r.blob();
+    narrateAudio = new Audio(URL.createObjectURL(blob));
+    narrateAudio.onended = () => { $('narrateStatus').textContent = ''; };
+    narrateAudio.play();
+    $('narrateStatus').textContent = 'playing…';
+  } catch {
+    $('narrateStatus').textContent = 'narration unavailable';
+  } finally {
+    $('narrate').disabled = false;
+  }
 }
 
 // ---- Tiger Data cross-drug comparison --------------------------------------
@@ -331,27 +415,8 @@ function renderValidation() {
 
 // ---- interaction -----------------------------------------------------------
 
-// The whole-heart view is a presentation of a single-cell solution, and the
-// caption says exactly that. Overclaiming a tissue simulation is the one
-// thing that would undo the project's credibility.
-const STAGE_TITLE = {
-  heart: 'Human heart',
-  cell: 'Human ventricular myocyte &mdash; live simulated state',
-  flying: 'Descending…',
-};
-
-const STAGE_SUB = {
-  heart: 'Contraction follows the simulated calcium transient; the colour '
-       + 'sweep is the simulated membrane potential. ORd-CiPA is a '
-       + 'single-cell model &mdash; the spread across the ventricle is an '
-       + 'illustrative conduction delay, not a tissue simulation.',
-  cell: '',
-  flying: '',
-};
-
 function setStage(mode) {
-  $('stageTitle').innerHTML = STAGE_TITLE[mode] || '';
-  $('stageSub').innerHTML = STAGE_SUB[mode] || '';
+  S.stage = mode;
   $('ionLegend').style.display = mode === 'cell' ? 'block' : 'none';
   $('enter').style.display = mode === 'heart' ? 'block' : 'none';
   $('back').style.display = mode === 'cell' ? 'block' : 'none';
@@ -364,6 +429,7 @@ function setStage(mode) {
     S.speed = mode === 'heart' ? 1 : 0.25;
     $('speed').value = String(S.speed);
   }
+  if (S.sweep) queueContext();
 }
 
 function showTip(g) {
@@ -431,6 +497,7 @@ function loop(ts) {
              controlApd90: S.sweep.control.APD90 });
     drawNet($('net'), S.bundle.frames, S.dose > 0 ? S.control : null, S.t);
   }
+  if (S.byMode) drawTransmural($('transmural'), S.byMode, S.t);
   requestAnimationFrame(loop);
 }
 

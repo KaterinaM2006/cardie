@@ -24,17 +24,24 @@ up front rather than buried in a footer:
 - **What does the drug actually do to the heart?** The action-potential
   chart now shades the gap between the drug-free and dosed APD90 directly —
   the prolongation *is* the shaded region, not something to eyeball between
-  two overlaid lines — and a cross-drug comparison panel puts all 12
+  two overlaid lines — a transmural-heterogeneity panel overlays three real
+  cell-layer solves (Endo/Epi/Mid) to show the actual re-entry mechanism
+  behind torsade de pointes, and a cross-drug comparison panel puts all 12
   compounds' simulated membrane potential side by side at one moment in the
   beat, backed by a live Tiger Data query.
+- **What am I looking at right now?** A left-column panel narrates the
+  current view in plain English — whole heart vs. single myocyte — and
+  regenerates on every stage change, drug change, and dose change. It's
+  Gemini-backed with the same offline fallback as the risk explanation, and
+  it explains the *view*, not the *verdict* (that's the separate "Why" card).
 
 ---
 
 ## Quick start
 
 ```bash
-git clone https://github.com/KaterinaM2006/cardie.git
-cd cardie
+git clone https://github.com/daohongliu/oxhack-project.git
+cd oxhack-project
 ./setup.sh                  # SUNDIALS, venv, both data repos, control-beat check
 .venv/bin/python app.py     # http://localhost:5000
 ```
@@ -43,9 +50,9 @@ cd cardie
 It ends by printing `control qNet=0.0781 APD90=277.2` — if you see that,
 the pipeline is correct and the rest is assembly.
 
-To enable the optional sponsor integrations (Tiger Data, Gemini), copy
-`.env.example` to `.env` and fill in the keys you have — `app.py` loads it
-automatically. None are required: the app runs fully
+To enable the optional sponsor integrations (Tiger Data, Gemini,
+ElevenLabs), copy `.env.example` to `.env` and fill in the keys you have —
+`app.py` loads it automatically. None are required: the app runs fully
 without any of them, and the header pills say which are live.
 
 `data/sweep.json` is committed, so the app runs immediately — no simulation
@@ -98,6 +105,32 @@ is kept on screen anyway because it is the number a non-specialist
 understands, and because where it disagrees with qNet is itself the argument
 for using qNet.
 
+### Transmural heterogeneity (Endo/Epi/Mid)
+
+The classification above is single-cell, endocardial only (`cell.mode = 0`),
+exactly as the FDA validates it. The `[cell]` component of the `.mmt` also
+defines `mode = 1` (epicardial) and `mode = 2` (mid-myocardial, the "M
+cell") — a plain literal constant, so `Engine.run(mode=...)` can switch cell
+type with `set_constant()`, no recompile.
+
+This isn't decoration. Real transmural dispersion of repolarisation — how
+much longer the M cell layer stays depolarised than the epicardium — is the
+textbook re-entry mechanism behind torsade de pointes. `sweep.py` now runs
+all 12 drugs × 4 doses at all three modes (`--no-transmural` skips modes
+1/2 for a faster dev sweep), stored additively as `control_by_mode` /
+`drugs[name].doses_by_mode` so the existing endocardial `control` / `doses`
+— and the acceptance check against them — are untouched.
+
+Drug-free baseline (prepace 400, this machine): Endo APD90 277 ms, Epi
+228 ms, Mid 351 ms — a 123 ms baseline dispersion before any drug is even
+applied. Quinidine at 4× Cmax, which only just fails to repolarise
+endocardially, fails outright in the M cell layer at the same dose.
+
+This view is additive and illustrative, shown alongside the validated qNet
+classification, not folded into it — there is no FDA-validated threshold for
+a "dispersion risk classifier," and inventing one would be exactly the kind
+of overclaiming this project otherwise avoids.
+
 ### Two limits, stated up front
 
 - **12 compounds, not 28.** The fitted dynamic-hERG binding parameters exist
@@ -133,7 +166,8 @@ about any identified individual. This is preclinical compound screening.
   3. risk classifier         qNet → LOW | INTERMEDIATE | HIGH  classifier.py
           │
           ▼
-  4. Flask API    ──► Gemini: explain / parse         app.py, explain.py
+  4. Flask API    ──► Gemini: explain verdict / narrate view / parse NL
+          │                                        app.py, explain.py
           │        ──► drug_info.py: clinical context per compound
           ▼
   5. web UI    animated myocyte + charts + narration   static/
@@ -149,11 +183,11 @@ pipeline.
 | File | Role |
 |---|---|
 | `engine.py` | ORd-CiPA v1.0 simulation. Compile once, vary with `set_constant()`. |
-| `sweep.py` | Precompute 12 drugs × 4 doses → `data/sweep.json`, and check it against the reference table. |
+| `sweep.py` | Precompute 12 drugs × 4 doses × 3 cell modes → `data/sweep.json`, and check the endocardial pass against the reference table. |
 | `classifier.py` | Two thresholds on qNet; confusion matrices for both metrics. |
 | `pharmacology.py` | Measured lookup and Morgan/Tanimoto nearest analogue. |
 | `tiger.py` | TimescaleDB hypertable, continuous aggregate, compression. |
-| `explain.py` | Gemini explanation + NL query, with offline fallbacks. |
+| `explain.py` | Gemini verdict explanation + view narration + NL query, with offline fallbacks. |
 | `drug_info.py` | Hand-curated clinical reference (class, use, mechanism, status) per compound. |
 | `app.py` | Flask JSON API, serves the precomputed bundle from memory. |
 | `static/signals.js` | The mapping layer: simulated state → colour, contraction, glyph state. |
@@ -185,7 +219,10 @@ GET  /api/sweep                    the whole precomputed bundle (the page fetche
                                     includes drug_info and model_info)
 GET  /api/run?drug=&dose=          qNet, APD90, risk, block profile, frames
 GET  /api/analogue?smiles=         nearest measured analogue + similarity
-POST /api/explain  {drug, dose}    plain-English mechanistic explanation
+POST /api/explain  {drug, dose}    plain-English mechanistic explanation (the verdict)
+POST /api/context  {drug, dose,    plain-English orientation in the current view
+                    stage}         (whole heart vs. single myocyte), regenerated on
+                                    every stage/drug/dose change
 POST /api/ask      {question}      natural language → structured query
 GET  /api/validation               confusion matrices + per-drug qNet
 GET  /api/trace?drug=&dose=&res=   trace from Tiger Data (continuous aggregate)
@@ -205,8 +242,8 @@ degrades to the cached sweep rather than failing outright.
 
 ## Sponsor integrations
 
-Both are **optional**: with no keys configured the app runs fully, and the
-header says which are live.
+All three are **optional**: with no keys configured the app runs fully, and
+the header says which are live.
 
 **Tiger Data** — simulation time is an integer offset within the beat, not a
 wall clock, so `ap_sample` is an integer-time hypertable rather than faked
@@ -233,15 +270,16 @@ Explanations are cached per (drug, dose) so the slider cannot trigger an API
 call per tick, and both paths fall back — a template built from the same
 numbers, and a regex parser — so a rate limit cannot break the demo.
 
-**Narration** (not a sponsor integration — it's the browser) — the
-**Narrate** button next to the "Why" panel reads the Gemini/template
-explanation aloud using `speechSynthesis`, the Web Speech API every modern
-browser ships natively. Same hard rule as Gemini: it is handed a finished
-sentence of English and computes nothing — it cannot change a single number
-on the page. No key, no account, no network call, so it is never the thing
-that goes down at a judging table. (An earlier version of this used
-ElevenLabs for a more natural voice; that needed a paid API tier to work at
-all via the API, so it was swapped for this.)
+**ElevenLabs** — reads the Gemini/template explanation aloud via the
+**Narrate** button next to the "Why" panel. Same hard rule as Gemini: it is
+handed a finished sentence of English and computes nothing — it cannot
+change a single number on the page. Audio is cached per explanation text, and
+the button simply doesn't do anything useful without `ELEVENLABS_API_KEY`
+set (the pill in the header says "offline").
+
+```bash
+export ELEVENLABS_API_KEY='…'
+```
 
 **Vultr** — the sweep is the one genuinely compute-heavy step:
 

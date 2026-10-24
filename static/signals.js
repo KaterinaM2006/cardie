@@ -11,6 +11,13 @@ export const CA_MIN = 7.33e-5, CA_MAX = 2.14e-4;
 export const HERG_OPEN_MAX = 0.496;     // control peak
 export const BEAT_MS = 2000;
 
+// Transmural cell modes. 0 is the only one the qNet classifier is
+// validated against; 1/2 are an additive heterogeneity view (see README).
+export const MODES = [0, 1, 2];
+export const MODE_LABEL = { 0: 'Endocardial', 1: 'Epicardial', 2: 'Mid-myocardial' };
+export const MODE_SHORT = { 0: 'Endo', 1: 'Epi', 2: 'Mid' };
+export const MODE_COLOUR = { 0: '#ffc448', 1: '#6ec3f0', 2: '#ff6b9d' };
+
 export const clamp01 = x => Math.max(0, Math.min(1, x));
 
 // Perceptually ordered: indigo -> violet -> orange -> amber. Not a rainbow:
@@ -67,17 +74,23 @@ const lerp = (a, b, f) => a + (b - a) * f;
 // The dose slider is continuous but only integer multiples were simulated.
 // Between them we interpolate and say so in the UI — we never extrapolate,
 // and we never pretend an interpolated point is a simulated one.
-export function doseBundle(sweep, drugName, dose) {
+//
+// mode: 0 (endocardial, the default and the only mode the qNet classifier
+// is validated against), 1 (epicardial) or 2 (mid-myocardial). sweep.json
+// always carries mode 0 under control_by_mode/doses_by_mode too, even from
+// a --no-transmural sweep, so this never needs a mode==0 special case.
+export function doseBundle(sweep, drugName, dose, mode = 0) {
   const drug = sweep.drugs[drugName];
-  const control = sweep.control;
+  const control = sweep.control_by_mode[mode];
+  const modeDoses = drug.doses_by_mode[mode];
   dose = Math.max(0, Math.min(4, dose));
 
   const at = m => m === 0 ? {
     mult: 0, conc_nM: 0, qNet: control.qNet, APD90: control.APD90,
     dAPD90: 0, repol_failure: false, peak_bound: 0,
-    block: Object.fromEntries(Object.keys(drug.doses[0].block).map(k => [k, 0])),
+    block: Object.fromEntries(Object.keys(modeDoses[0].block).map(k => [k, 0])),
     frames: control.frames,
-  } : drug.doses[m - 1];
+  } : modeDoses[m - 1];
 
   const loI = Math.floor(dose), hiI = Math.ceil(dose);
   const lo = at(loI), hi = at(hiI);

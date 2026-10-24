@@ -18,10 +18,14 @@ import sys
 import time
 
 import engine
-from engine import CIPA_LABEL, Engine, hill_block, load_ground_truth
+from engine import CIPA_LABEL, Engine, MODE_LABEL, hill_block, load_ground_truth
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DOSES = (1, 2, 3, 4)
+
+# Modes 1/2 (Epi, Mid) are additive: a transmural-heterogeneity view on top
+# of the validated endocardial (0) classification, not a replacement for it.
+TRANSMURAL_MODES = (1, 2)
 
 # §3 of the brief. The sweep checks itself against these.
 REFERENCE = {
@@ -45,6 +49,50 @@ def jsonable(x):
     return None if x is None or (isinstance(x, float) and math.isnan(x)) else x
 
 
+def run_mode(eng, mode, drugs, ic50, herg, prepace, frames):
+    """Control + all 12 drugs x 4 doses at one cell mode.
+
+    Same computation as the mode-0 (endocardial) sweep in main(), just
+    parameterised over mode so modes 1 (Epi) and 2 (Mid) can be computed
+    the same way without duplicating the acceptance-checked mode-0 path.
+    """
+    t0 = time.time()
+    ctrl = eng.run(prepace=prepace, frames=frames, mode=mode)
+    print(f'  control [{MODE_LABEL[mode]}] qNet={ctrl["qNet"]:.4f}  '
+          f'APD90={ctrl["APD90"]:.1f}')
+
+    doses_by_drug = {}
+    for name in sorted(drugs, key=lambda d: -drugs[d]['cipa']):
+        info = drugs[name]
+        cmax = info['cmax']
+        doses = []
+        for mult in DOSES:
+            conc = mult * cmax
+            r = eng.run(ic50[name], herg[name], conc, prepace=prepace,
+                        frames=frames, mode=mode)
+            dapd = (r['APD90'] - ctrl['APD90']
+                    if not math.isnan(r['APD90']) else float('nan'))
+            doses.append({
+                'mult': mult,
+                'conc_nM': conc,
+                'qNet': r['qNet'],
+                'APD90': jsonable(r['APD90']),
+                'dAPD90': jsonable(dapd),
+                'repol_failure': math.isnan(r['APD90']),
+                'block': hill_block(ic50[name], conc),
+                'peak_bound': max(r['frames']['hERG_bound']),
+                'frames': r['frames'],
+            })
+        doses_by_drug[name] = doses
+        print(f'    {name:>15s} [{MODE_LABEL[mode]}]  4x APD90='
+              f'{doses[3]["APD90"] if doses[3]["APD90"] is not None else float("nan"):.1f}',
+              flush=True)
+
+    print(f'  [{MODE_LABEL[mode]}] done in {time.time() - t0:.0f}s')
+    return {'qNet': ctrl['qNet'], 'APD90': ctrl['APD90'],
+            'frames': ctrl['frames']}, doses_by_drug
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--prepace', type=int, default=400)
@@ -52,6 +100,8 @@ def main():
     ap.add_argument('--frames', type=int, default=300)
     ap.add_argument('--tiger', action='store_true',
                     help='also load every run into the Tiger Data hypertable')
+    ap.add_argument('--no-transmural', action='store_true',
+                    help='skip the Epi/Mid cell-mode passes (endocardial only, faster)')
     args = ap.parse_args()
 
     drugs, ic50, herg = load_ground_truth()
@@ -125,6 +175,24 @@ def main():
                   flush=True)
         entry['qnet_mean'] = sum(qnets) / len(qnets)
         out['drugs'][name] = entry
+
+    # Transmural heterogeneity: Epi (1) and Mid-myocardial (2), additive to
+    # the validated endocardial (0) classification above. Mode 0 is stored
+    # here too (duplicating `control`/`doses`) so the frontend can always
+    # index by mode without a special case for the default.
+    out['control_by_mode'] = {'0': out['control']}
+    for name in out['drugs']:
+        out['drugs'][name]['doses_by_mode'] = {'0': out['drugs'][name]['doses']}
+    out['meta']['modes'] = MODE_LABEL
+
+    if not args.no_transmural:
+        for mode in TRANSMURAL_MODES:
+            print(f'\ntransmural pass: mode {mode} ({MODE_LABEL[mode]})')
+            mode_ctrl, mode_doses = run_mode(eng, mode, drugs, ic50, herg,
+                                             args.prepace, args.frames)
+            out['control_by_mode'][str(mode)] = mode_ctrl
+            for name, doses in mode_doses.items():
+                out['drugs'][name]['doses_by_mode'][str(mode)] = doses
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, 'w') as f:
