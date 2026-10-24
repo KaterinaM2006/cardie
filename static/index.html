@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cardie</title>
+<style>
+  :root{
+    --bg:#070810; --panel:#0e1020; --panel2:#141730; --line:#23274a;
+    --text:#e8eaf6; --muted:#8c93b8; --grid:#5a63a0;
+    --accent:#ffc448; --accent2:#5fd38d; --ghost:#5a6192; --shade:#5fd38d22;
+    --playhead:#ff6b9d; --thresh:#8c93b8; --danger:#ff5470;
+    --high:#ff5470; --interm:#ffb545; --low:#49d6a0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex; flex-direction:column; min-height:100vh;
+  }
+  h1,h2,h3{margin:0; font-weight:600}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  header{
+    display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+    padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel);
+  }
+  .brand{font-size:19px; letter-spacing:.22em; font-weight:700}
+  .brand span{color:var(--accent)}
+  .tagline{color:var(--muted); font-size:12px; max-width:30ch; line-height:1.35}
+  header label{color:var(--muted); font-size:12px; text-transform:uppercase;
+               letter-spacing:.08em; margin-right:8px}
+  select,input[type=text]{
+    background:var(--panel2); color:var(--text); border:1px solid var(--line);
+    border-radius:7px; padding:7px 10px; font:inherit;
+  }
+  input[type=range]{width:230px; accent-color:var(--accent); vertical-align:middle}
+  .dose-readout{font-size:17px; font-weight:700; min-width:11ch; display:inline-block}
+  .conc{color:var(--muted); font-size:12px}
+  button{
+    background:var(--panel2); color:var(--text); border:1px solid var(--line);
+    border-radius:7px; padding:7px 12px; font:inherit; cursor:pointer;
+  }
+  button:hover{border-color:var(--accent)}
+  .grow{flex:1}
+
+  main{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px;
+       padding:14px 20px; align-items:start}
+  .card{background:var(--panel); border:1px solid var(--line);
+        border-radius:12px; padding:12px}
+  .card h3{font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+           color:var(--muted); margin-bottom:8px}
+
+  #cellwrap{position:relative; height:420px; padding:0; overflow:hidden}
+  #cell{width:100%; height:100%; display:block; cursor:grab;
+        background:radial-gradient(ellipse at 50% 45%, #141734 0%, #080a16 72%)}
+  #cell:active{cursor:grabbing}
+  .overlay{position:absolute; pointer-events:none}
+  .cell-title{top:10px; left:14px; font-size:11px; letter-spacing:.14em;
+              text-transform:uppercase; color:var(--muted)}
+  .cell-sub{top:28px; left:14px; font-size:11px; color:var(--muted);
+            max-width:52ch; line-height:1.45}
+  .cell-hint{bottom:10px; left:14px; font-size:11px; color:var(--muted)}
+  .legend{bottom:10px; right:14px; text-align:right; font-size:11px; color:var(--muted)}
+  .legend i{display:inline-block; width:9px; height:9px; border-radius:50%;
+            margin-right:5px}
+  #banner{
+    bottom:34px; left:50%; transform:translateX(-50%);
+    background:#2a0a16ee; border:1px solid var(--danger); color:var(--danger);
+    padding:10px 18px; border-radius:9px; font-weight:700; letter-spacing:.1em;
+    display:none; text-align:center;
+  }
+  #banner small{display:block; font-weight:400; letter-spacing:0;
+                color:var(--text); opacity:.75; margin-top:3px}
+  #back{
+    position:absolute; top:10px; right:14px; z-index:6; display:none;
+    background:#0e1020cc; backdrop-filter:blur(4px);
+  }
+  #enter{
+    bottom:30px; left:50%; transform:translateX(-50%); text-align:center;
+  }
+  .enter-label{
+    font-size:11px; letter-spacing:.22em; color:var(--accent);
+    font-weight:700;
+  }
+  .enter-label small{
+    display:block; letter-spacing:.04em; font-weight:400; font-size:11px;
+    color:var(--muted); margin-top:3px;
+  }
+  .enter-ring{
+    width:30px; height:30px; margin:0 auto 9px; border-radius:50%;
+    border:1.5px solid var(--accent); opacity:.5;
+    animation:ping 1.9s cubic-bezier(.2,.6,.3,1) infinite;
+  }
+  @keyframes ping{
+    0%{transform:scale(.55); opacity:.9}
+    70%{transform:scale(1.35); opacity:0}
+    100%{opacity:0}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .enter-ring{animation:none; opacity:.6}
+  }
+  #tip{
+    position:absolute; display:none; pointer-events:none; z-index:5;
+    background:#05060fe8; border:1px solid var(--line); border-radius:7px;
+    padding:6px 9px; font-size:11px; white-space:nowrap;
+  }
+  .transport{display:flex; align-items:center; gap:10px; margin-top:10px}
+  .transport input[type=range]{flex:1; width:auto}
+
+  .chart{height:148px}
+  .chart canvas{width:100%; height:100%; display:block}
+
+  .verdict{text-align:center; padding:14px 12px; border-radius:10px;
+           border:1px solid var(--line)}
+  .verdict .cls{font-size:26px; font-weight:800; letter-spacing:.04em}
+  .verdict .sub{font-size:11px; color:var(--muted); margin-top:3px}
+  .verdict.HIGH{background:#2a0c1a; border-color:var(--high)}
+  .verdict.HIGH .cls{color:var(--high)}
+  .verdict.INTERMEDIATE{background:#2a1e08; border-color:var(--interm)}
+  .verdict.INTERMEDIATE .cls{color:var(--interm)}
+  .verdict.LOW{background:#07241c; border-color:var(--low)}
+  .verdict.LOW .cls{color:var(--low)}
+
+  .metrics{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px}
+  .metric{background:var(--panel2); border-radius:9px; padding:9px 10px}
+  .metric .k{font-size:10px; color:var(--muted); letter-spacing:.08em;
+             text-transform:uppercase}
+  .metric .v{font-size:18px; font-weight:700; font-family:ui-monospace,monospace}
+  .metric .n{font-size:10px; color:var(--muted)}
+
+  .bar{display:grid; grid-template-columns:42px 1fr 38px; gap:7px;
+       align-items:center; margin-bottom:5px; font-size:12px}
+  .bar .track{height:8px; background:var(--panel2); border-radius:4px;
+              overflow:hidden}
+  .bar .fill{height:100%; border-radius:4px; transition:width .12s linear}
+  .bar .pc{text-align:right; color:var(--muted);
+           font-family:ui-monospace,monospace; font-size:11px}
+
+  #why{font-size:13px; line-height:1.55; min-height:62px}
+  .src{font-size:10px; color:var(--muted); margin-top:7px}
+  .why-row{display:flex; align-items:center; gap:8px; margin-top:8px}
+  #narrate{font-size:12px; padding:5px 10px}
+  #narrate:disabled{opacity:.4; cursor:default}
+  #narrate:disabled:hover{border-color:var(--line)}
+  #narrateStatus{font-size:11px; color:var(--muted)}
+  #ask{width:100%; margin-bottom:7px}
+  #askout{font-size:12px; color:var(--muted); min-height:16px}
+
+  .model-card dl{display:grid; grid-template-columns:auto 1fr; gap:4px 10px;
+                 font-size:12px; margin:0}
+  .model-card dt{color:var(--muted); white-space:nowrap}
+  .model-card dd{margin:0}
+  .model-card .scope{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
+                     font-size:11px; color:var(--muted); line-height:1.5}
+
+  .drug-card dl{display:grid; grid-template-columns:auto 1fr; gap:6px 10px;
+               font-size:12px; margin:0}
+  .drug-card dt{color:var(--muted); white-space:nowrap; padding-top:1px}
+  .drug-card dd{margin:0; line-height:1.4}
+  .drug-card .status{margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
+                     font-size:11px; color:var(--muted); line-height:1.5}
+
+  .xd-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(76px,1fr));
+           gap:8px; margin-top:10px}
+  .xd-cell{border-radius:8px; padding:6px; text-align:center; cursor:pointer;
+           background:var(--panel2); border:2px solid var(--line)}
+  .xd-cell:hover{border-color:var(--ghost)}
+  .xd-swatch{height:22px; border-radius:5px; margin-bottom:5px}
+  .xd-name{font-size:10px; color:var(--muted); white-space:nowrap;
+           overflow:hidden; text-overflow:ellipsis}
+  .xd-v{font-size:10px; font-family:ui-monospace,monospace; margin-top:1px}
+
+  .validation{grid-column:1/-1}
+  .vgrid{display:grid; grid-template-columns:auto auto 1fr; gap:20px;
+         align-items:start}
+  table{border-collapse:collapse; font-size:12px}
+  th,td{padding:5px 10px; text-align:center; border:1px solid var(--line)}
+  th{color:var(--muted); font-weight:500; font-size:10px;
+     text-transform:uppercase; letter-spacing:.07em}
+  td.hit{background:#0d2b20; color:var(--low); font-weight:700}
+  td.miss{background:#2b0d16; color:var(--high); font-weight:700}
+  td.zero{color:#3a3f63}
+  .score{font-size:24px; font-weight:800; font-family:ui-monospace,monospace}
+  .score small{font-size:11px; color:var(--muted); font-weight:400;
+               letter-spacing:0; display:block}
+  #strip{width:100%; height:92px; display:block}
+  .note{font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5}
+  .pill{display:inline-block; padding:2px 7px; border-radius:20px;
+        border:1px solid var(--line); font-size:10px; color:var(--muted);
+        margin-right:5px}
+  .pill.on{border-color:var(--accent2); color:var(--accent2)}
+  footer{padding:10px 20px 20px; color:var(--muted); font-size:11px;
+         line-height:1.6; border-top:1px solid var(--line); margin-top:4px}
+
+  @media (max-width:1040px){
+    main{grid-template-columns:1fr}
+    .vgrid{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .bar .fill{transition:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">CARD<span>IE</span></div>
+    <div class="tagline">In-silico proarrhythmia screen on the FDA's ORd-CiPA v1.0 myocyte</div>
+  </div>
+  <div>
+    <label for="drug">Compound</label>
+    <select id="drug"></select>
+  </div>
+  <div>
+    <label for="dose">Dose</label>
+    <input type="range" id="dose" min="0" max="4" step="0.05" value="1">
+    <span class="dose-readout mono" id="doseText">1.00&times; C<sub>max</sub></span>
+    <span class="conc mono" id="concText"></span>
+  </div>
+  <div class="grow"></div>
+  <div id="integrations"></div>
+</header>
+
+<main>
+  <div>
+    <div class="card" id="cellwrap">
+      <canvas id="cell"></canvas>
+      <div class="overlay cell-title" id="stageTitle">Human heart</div>
+      <div class="overlay cell-sub" id="stageSub"></div>
+      <button id="back" title="back to the whole heart">&larr; Heart</button>
+      <div class="overlay" id="enter">
+        <div class="enter-ring"></div>
+        <div class="enter-label">CLICK THE HEART<small>descend to a single ventricular myocyte</small></div>
+      </div>
+      <div class="overlay legend" id="ionLegend" style="display:none">
+        <div><i style="background:#ffc048"></i>Na<sup>+</sup>
+             <i style="background:#5fd38d;margin-left:8px"></i>Ca<sup>2+</sup>
+             <i style="background:#6ec3f0;margin-left:8px"></i>K<sup>+</sup></div>
+        <div style="margin-top:3px"><i style="background:#c8ccd8"></i>drug-bound hERG</div>
+      </div>
+      <div class="overlay cell-hint" id="cellHint" style="display:none">drag to rotate &middot; hover a channel &middot;
+        faded cell behind is the drug-free control, in sync</div>
+      <div class="overlay" id="banner">REPOLARISATION FAILURE
+        <small>the cell does not recover before the next stimulus</small></div>
+      <div id="tip" class="mono"></div>
+    </div>
+
+    <div class="transport">
+      <button id="play">&#10073;&#10073; Pause</button>
+      <input type="range" id="scrub" min="0" max="2000" step="1" value="0">
+      <span class="mono" id="tText" style="min-width:8ch">0 ms</span>
+      <label for="speed" style="margin-left:4px">Speed</label>
+      <select id="speed">
+        <option value="0.12">0.12&times;</option>
+        <option value="0.25" selected>0.25&times;</option>
+        <option value="0.5">0.5&times;</option>
+        <option value="1">1&times;</option>
+      </select>
+    </div>
+
+    <div class="card chart" style="margin-top:12px">
+      <h3>Action potential &mdash; dosed vs drug-free control (ghost)</h3>
+      <canvas id="ap"></canvas>
+    </div>
+    <div class="card chart" style="margin-top:10px">
+      <h3>Net current &mdash; shaded area is qNet</h3>
+      <canvas id="net"></canvas>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <h3>Cross-drug comparison <span class="pill" id="tigerSrc"></span></h3>
+      <div class="note">Membrane potential of all 12 compounds at one moment
+        in the beat, at the current dose. Colour is the same voltage ramp as
+        the myocyte above; the border is the FDA risk class. Click a cell to
+        inspect that compound.</div>
+      <div class="transport" style="margin-top:8px">
+        <label for="xdT" style="color:var(--muted); font-size:12px">Moment</label>
+        <input type="range" id="xdT" min="0" max="600" step="5" value="150">
+        <span class="mono" id="xdTText" style="min-width:16ch">150 ms &middot; plateau</span>
+      </div>
+      <div id="crossdrug" class="xd-grid"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card model-card">
+      <h3>Model &amp; data sources</h3>
+      <dl id="modelDl"></dl>
+      <div class="scope" id="modelScope"></div>
+    </div>
+
+    <div class="card drug-card" style="margin-top:12px">
+      <h3>About <span id="drugAboutName"></span></h3>
+      <dl id="drugDl"></dl>
+      <div class="status" id="drugStatus"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Verdict</h3>
+      <div class="verdict" id="verdict">
+        <div class="cls" id="riskClass">&mdash;</div>
+        <div class="sub" id="riskSub"></div>
+      </div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="k">qNet</div>
+          <div class="v mono" id="qnet">&mdash;</div>
+          <div class="n">&micro;C/&micro;F &middot; control 0.0781</div>
+        </div>
+        <div class="metric">
+          <div class="k">&Delta;APD90</div>
+          <div class="v mono" id="dapd">&mdash;</div>
+          <div class="n" id="apdNote">vs 277.2 ms</div>
+        </div>
+        <div class="metric">
+          <div class="k">hERG drug-bound</div>
+          <div class="v mono" id="bound">&mdash;</div>
+          <div class="n">peak occupancy</div>
+        </div>
+        <div class="metric">
+          <div class="k">FDA label</div>
+          <div class="v mono" id="fda">&mdash;</div>
+          <div class="n">CiPA training set</div>
+        </div>
+      </div>
+      <div class="note" id="interpNote"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Channel block at this dose</h3>
+      <div id="blocks"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Why <span id="whySrc" class="pill"></span></h3>
+      <div id="why">&mdash;</div>
+      <div class="why-row">
+        <button id="narrate" title="hear this explanation read aloud">&#128266; Narrate</button>
+        <span id="narrateStatus"></span>
+      </div>
+      <div class="src">Generated from the computed block profile. The language
+        model never touches the numerical path; the narration reads the
+        finished sentence and computes nothing of its own.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Ask</h3>
+      <input type="text" id="ask" placeholder="is terfenadine safe at twice the normal dose?">
+      <div id="askout"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <h3>Any molecule <span class="pill">predicted</span></h3>
+      <input type="text" id="smiles" placeholder="paste a SMILES string">
+      <div id="smilesout" class="note"></div>
+    </div>
+  </div>
+
+  <div class="card validation">
+    <h3>Validation &mdash; 12 CiPA training compounds, scored against FDA labels</h3>
+    <div class="vgrid">
+      <div>
+        <div class="score" id="score">&mdash;<small>qNet, mean over 1&ndash;4&times; C<sub>max</sub></small></div>
+        <table id="cm" style="margin-top:8px"></table>
+      </div>
+      <div>
+        <div class="score" id="score2">&mdash;<small>&Delta;APD90 at 4&times; C<sub>max</sub></small></div>
+        <table id="cm2" style="margin-top:8px"></table>
+      </div>
+      <div>
+        <canvas id="strip"></canvas>
+        <div class="note" id="vnote"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Cell model: O'Hara&ndash;Rudy CiPA v1.0 (Dutta et al. 2017), endocardial,
+  CL 2000 ms, 400 pre-paced beats. Drug binding: Li et al. 2017 dynamic hERG
+  Markov model with the FDA's published per-compound parameters; six further
+  channels blocked by a static Hill equation from Li2017 IC50s.
+  qNet = &int;(I<sub>NaL</sub>+I<sub>CaL</sub>+I<sub>to</sub>+I<sub>Kr</sub>+I<sub>Ks</sub>+I<sub>K1</sub>)dt.
+  <strong>Scope: 12 compounds, not 28</strong> &mdash; the fitted dynamic hERG
+  binding parameters exist only for the CiPA training set.
+  Preclinical compound screening; not a medical device and not a claim about any individual.
+</footer>
+
+<!-- GSAP is a classic script so the ES modules below can use window.gsap
+     without a bundler. Vendored, like Three.js, so the demo has no CDN
+     dependency. If it fails to load, the stage transition degrades to a cut
+     rather than breaking. -->
+<script src="./vendor/gsap.min.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

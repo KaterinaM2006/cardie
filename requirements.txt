@@ -1,0 +1,13 @@
+# Verified: Python 3.13, myokit 1.39.2, sundials 6.4.1, rdkit 2026.09.1
+myokit>=1.39
+numpy>=1.26
+scipy>=1.11
+flask>=3.0
+flask-cors>=4.0
+rdkit>=2024.3
+# Sponsor integrations. Both are optional: the app runs fully without them.
+psycopg2-binary>=2.9     # Tiger Data (TimescaleDB)
+google-genai>=0.3        # Gemini explanation + NL query
+elevenlabs>=2.0          # narration
+python-dotenv>=1.0
+pytest>=8.0

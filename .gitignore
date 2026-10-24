@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+
+# Cloned at setup time by setup.sh, not vendored:
+#   external/CiPA            GPL-3.0, FDA
+#   external/myokit-models   myokit project
+external/
