@@ -128,7 +128,8 @@ def _print_matrix(title, cm, model, unit):
     print(f'\n{title}: {model["correct"]}/{model["n"]} '
           f'({model["accuracy"]:.0%})   thresholds '
           f'{model["t_high"]:.4f} / {model["t_low"]:.4f} {unit}')
-    print(f'{"true \\ pred":>14s}' + ''.join(f'{c:>14s}' for c in CLASSES))
+    header = 'true \\ pred'
+    print(f'{header:>14s}' + ''.join(f'{c:>14s}' for c in CLASSES))
     for a in CLASSES:
         print(f'{a:>14s}' + ''.join(f'{cm[a][b]:>14d}' for b in CLASSES))
 
