@@ -91,7 +91,6 @@ async function boot() {
   };
   for(const id of ['partner','partnerDose']) $(id).onchange=()=>{const a=currentA(),b=currentB();chat.manualChange();applySingle(a);$('partner').value=b.drug;$('partnerDose').value=b.dose;scenes.reset();$('partner').value=b.drug;$('partnerDose').value=b.dose;};
   bindUI();
-  if(S.sweep.demo_enabled && new URLSearchParams(location.search).get('demo')==='1') chat.setMode(true);
 
   if (reduceMotion) {
     // Hold a static frame on the plateau, with the scrub bar available.
@@ -232,7 +231,7 @@ function renderTransmural() {
 function queueWhy() {
   clearTimeout(whyTimer);
   stopNarration();
-  if(S.demo) { $('why').textContent='Scripted demo: independently computed single-drug metrics refer to A. No combined risk is calculated.'; $('whySrc').textContent='scripted'; return; }
+  if(S.demo) { $('why').textContent='Independently computed single-drug metrics refer to A. No combined risk is calculated.'; $('whySrc').textContent='cached'; return; }
   const version=stateVersion;
   // Debounced, and cached server-side per (drug, dose): the slider never
   // triggers a model call on every tick.
@@ -275,7 +274,7 @@ function queueContext() {
   if (S.stage === 'flying') return;
   $('ctxKicker').textContent = CTX_KICKER[S.stage] || '';
   $('ctxTitle').textContent = CTX_TITLE[S.stage] || '';
-  if(S.demo) { $('ctxText').textContent='Explanatory heart animation driven by single-cell data. Use the chat to choose the next scene.'; $('ctxSrc').textContent='scripted'; return; }
+  if(S.demo) { $('ctxText').textContent='Explanatory heart animation driven by single-cell data. Use the chat to choose the next scene.'; $('ctxSrc').textContent='cached'; return; }
   const version=stateVersion;
   ctxTimer = setTimeout(async () => {
     const drug = S.drug, dose = S.dose, stage = S.stage;

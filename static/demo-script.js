@@ -23,15 +23,15 @@ export function matchRequest(stage, text, names = ['dofetilide', 'verapamil']) {
   const s = text.toLowerCase().replace(/×/g,'x').replace(/\.(?!\d)|(?<!\d)\./g,' ').replace(/[^a-z0-9.]+/g,' ').trim();
   const cfg = DEMO.stages[stage];
   const fail = reason => ({ error: `${reason} ${cfg.prompt ? 'Try: '+cfg.prompt : 'Use Replay / Reset to start again.'}` });
-  if (!cfg.action) return fail('The scripted sequence is complete.');
+  if (!cfg.action) return fail('The sequence is complete.');
   if (/\b(mg|mcg|ug|milligrams?|nm|micromolar)\b/.test(s)) return fail('Use exposure multiples of Cmax; no dose-to-exposure conversion is available.');
   if (/\b(not|don|dont|instead|except|without)\b/.test(s)) return fail('Please submit an unambiguous positive request.');
   const vocabulary = new Set(('show me at x reference exposure times fold twice double cmax normal dose the same multiple compare comparison it with versus vs to what happens happen if both are taken take together combine combined combination and a b please can could you display simulate see tell about drug drugs medicine medicines these two for of do does would when we happen happen taking them their i want like how will look as before now happen happens effect effects').split(' '));
   const unknown = s.split(/\s+/).filter(w => !names.includes(w) && !vocabulary.has(w) && !/^\d+(?:\.\d+)?x?$/.test(w));
-  if (unknown.length) return fail('This scripted demo supports the documented prompts and close paraphrases.');
+  if (unknown.length) return fail('Please use the suggested prompt or a close paraphrase.');
   const drugs = names.filter(n => new RegExp(`\\b${n}\\b`).test(s));
   const numbers = s.match(/\d+(?:\.\d+)?/g) || [];
-  if (numbers.some(n => +n !== 2) || /\b(once|one|three|four|half|triple)\b/.test(s)) return fail('This script supports 2× Cmax for each drug.');
+  if (numbers.some(n => +n !== 2) || /\b(once|one|three|four|half|triple)\b/.test(s)) return fail('This conversation supports 2× Cmax for each drug.');
   const exposure = /\b2\s*x\b|\b2\s*(times|fold)\b|\b(twice|double)\b|\btwo\s*(times|fold)\b/.test(s);
   const same = /\bsame\b/.test(s) && /exposure|multiple|cmax|dose/.test(s);
   const compare = /\b(compare|comparison|versus|vs)\b/.test(s);

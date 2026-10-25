@@ -339,9 +339,10 @@ Also worth knowing: pre-pacing is not "more is better" (control converges by
 The Flask/static JavaScript app needs no frontend build. Use the existing setup
 instructions, then start with `TORSADE_DEMO_ENABLED=1 .venv/bin/python app.py`
 (or set that flag in `.env`). It is **off by default**. Changing the environment
-flag requires a Flask restart; the exposed **Demo Mode** checkbox switches modes
-at runtime. `/?demo=1` starts clean in demo mode only when the environment flag
-permits it. No API key is needed. All scripted actions use the already loaded
+flag requires a Flask restart. It alone determines whether scripted chat is active;
+there is no runtime mode toggle, mode badge or query-parameter override. Open chat
+with the speech-bubble icon at the lower left. The drawer slides over the page
+without resizing or moving the application. Close it with ×, Escape, or the backdrop. No API key is needed. All scripted actions use the already loaded
 sweep and vendored assets; no network calls are needed after loading.
 
 Submit these three messages individually, in order (suggestion buttons only fill
@@ -359,10 +360,10 @@ not a tissue simulation. A/B graphs share fixed voltage/time axes and playback.
 The sidebar refers to A. Script configuration and intent validation live in
 `static/demo-script.js`, independently of chat rendering and scientific code.
 
-**Reset Demo / Replay** clears history, comparisons, combined scenes and pending
+**New conversation / Replay** clears history, comparisons, combined scenes and pending
 work, restores starting settings and time zero. Refresh restarts deterministically.
-Leaving demo mode also clears the sequence. Manual drug/exposure changes reset
-an active sequence with a notice before applying the change. Camera, playback
+Manual drug/exposure changes reset
+an active conversation with a notice before applying the change. Camera, playback
 and speed controls are independent. At completion the scenario buttons let you
 return to Single/A, A/B and Combined without clearing the conversation.
 Normal-mode Ask continues to use the existing backend. Normal mode also has
@@ -396,9 +397,9 @@ Run `node --test tests/demo.test.mjs tests/animations.test.mjs` and
 `.venv/bin/python -m pytest tests/test_api.py -q`.
 `tests/browser_demo.py` operates real Chrome with native pointer/keyboard events,
 checks distinct scenario metrics and rendered graphs, rejects bad requests,
-exercises reset/duplicate/mode races, manual scenarios and laptop layout, and
+exercises reset/duplicate races, drawer interactions and laptop layout, and
 checks console/network errors. It uses the optional Python `websockets` package.
 Start Flask with `TORSADE_DEMO_ENABLED=1 PORT=5055`, start Chrome with
 `google-chrome --headless=new --no-sandbox --enable-unsafe-swiftshader --remote-debugging-port=9231 --user-data-dir=/tmp/torsade-test`,
 then run `.venv/bin/python tests/browser_demo.py`. Screenshots go to
-`/tmp/torsade-{comparison,combined,laptop}.png`.
+`/tmp/torsade-drawer-{closed,open,mobile}.png`.
