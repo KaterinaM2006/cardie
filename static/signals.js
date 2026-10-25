@@ -20,10 +20,10 @@ export const MODE_COLOUR = { 0: '#ffc448', 1: '#6ec3f0', 2: '#ff6b9d' };
 
 export const clamp01 = x => Math.max(0, Math.min(1, x));
 
-// Perceptually ordered: indigo -> violet -> orange -> amber. Not a rainbow:
-// a rainbow ramp implies categories where there is a continuum.
-const MEMBRANE_RAMP = [[0.00, [26, 22, 66]], [0.35, [78, 42, 120]],
-                       [0.65, [214, 109, 44]], [1.00, [255, 196, 72]]];
+// Fixed blue–white–red voltage scale, shared by both 3D views and the legend.
+// Keep the measured bounds stable across drugs and doses.
+export const MEMBRANE_RAMP = [[0.00, [32, 67, 224]], [0.35, [113, 159, 247]],
+                              [0.65, [255, 225, 228]], [1.00, [246, 48, 58]]];
 
 export function membraneRGB(v) {
   const x = clamp01((v - V_MIN) / (V_MAX - V_MIN));

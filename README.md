@@ -61,11 +61,18 @@ needed to demo. To regenerate it (~7 min on 4 cores), or to run the tests:
 ```bash
 .venv/bin/python sweep.py          # prints a table that must match §3, row for row
 .venv/bin/python -m pytest tests/ -q   # 42 tests, ~40 s
+node tests/animations.test.mjs     # geometry, channel attachment, fades and camera fit
 ```
 
 The page opens on the heart. Click it to descend into the myocyte; `Esc` or
 the **← Heart** button goes back. Drag to rotate, hover a channel for its
 instantaneous current, space bar pauses.
+
+For visual checks, pause and scrub through 0, 12, 80, 160, 280, 400 and
+1999 ms in both views. Compare the silhouettes, lighting and surface detail
+with `static/design-heart.png` and `static/design-cell.png`; voltage uses the
+fixed blue–white–red legend and shortening follows calcium. Check entry and
+exit during playback as well as paused, then repeat at a narrow viewport.
 
 **Troubleshooting**
 
@@ -326,3 +333,72 @@ that looks entirely reasonable while being wrong.
 Also worth knowing: pre-pacing is not "more is better" (control converges by
 ~400 beats), and quinidine at 4× Cmax legitimately fails to repolarise —
 `APD90` is `NaN`, which is rendered rather than crashed on.
+
+## Interactive scripted demo
+
+The Flask/static JavaScript app needs no frontend build. Use the existing setup
+instructions, then start with `TORSADE_DEMO_ENABLED=1 .venv/bin/python app.py`
+(or set that flag in `.env`). It is **off by default**. Changing the environment
+flag requires a Flask restart; the exposed **Demo Mode** checkbox switches modes
+at runtime. `/?demo=1` starts clean in demo mode only when the environment flag
+permits it. No API key is needed. All scripted actions use the already loaded
+sweep and vendored assets; no network calls are needed after loading.
+
+Submit these three messages individually, in order (suggestion buttons only fill
+the input; Send or Enter submits; Shift+Enter adds a newline):
+
+1. `Show me dofetilide at 2x reference exposure.`
+2. `Compare it with verapamil at the same reference-exposure multiple.`
+3. `What happens if both are taken together?`
+
+Starting settings are dofetilide at **1× Cmax**, single scenario, heart camera,
+empty history. The scripted A is `dofetilide-2x-endo` (4.0 nM, APD90
+346.9 ms); B is `verapamil-2x-endo` (162.0 nM, APD90 300.2 ms). These are
+independent endocardial runs in `data/sweep.json`. The heart is explanatory,
+not a tissue simulation. A/B graphs share fixed voltage/time axes and playback.
+The sidebar refers to A. Script configuration and intent validation live in
+`static/demo-script.js`, independently of chat rendering and scientific code.
+
+**Reset Demo / Replay** clears history, comparisons, combined scenes and pending
+work, restores starting settings and time zero. Refresh restarts deterministically.
+Leaving demo mode also clears the sequence. Manual drug/exposure changes reset
+an active sequence with a notice before applying the change. Camera, playback
+and speed controls are independent. At completion the scenario buttons let you
+return to Single/A, A/B and Combined without clearing the conversation.
+Normal-mode Ask continues to use the existing backend. Normal mode also has
+manual A/B controls (A uses the main drug/exposure selectors; B has its own
+selectors) and the supported combined preset.
+
+### Combined preset provenance
+
+No combination pharmacology or tissue model is present. The only combined
+preset is dofetilide **2× Cmax** plus verapamil **2× Cmax**, ID
+`dofetilide-verapamil-2x-illustration`, source **`illustrative_combination`**.
+Other pairs/exposures show an unavailable message. The combined canvas is an
+explicitly schematic capsule, with colour and at most 7% presentation shortening
+recovering over a bounded 42% of the existing 2000 ms animation clock. These
+are artistic parameters (`DEMO.combined.recoveryFraction`), chosen to illustrate
+hypothetical slower recovery, not effects inferred by adding or averaging drug
+results. It is visibly distinct from either single-drug heart animation.
+
+Combined APD90, qNet and risk are **Not calculated**. No combination trace enters
+validation statistics; the validation and single-drug scientific panels are hidden
+in Combined. Its limitation is shown in the view and chat. To replace this preset,
+add a separately identified combined result with documented concentrations,
+model/protocol, binding assumptions, validation and metric provenance; update the
+scenario adapter in `static/scenarios.js` and the response/configuration together.
+Never relabel this schematic as a simulated trace or infer whole-heart arrhythmia
+from the independent cell results.
+
+### Demo verification
+
+Run `node --test tests/demo.test.mjs tests/animations.test.mjs` and
+`.venv/bin/python -m pytest tests/test_api.py -q`.
+`tests/browser_demo.py` operates real Chrome with native pointer/keyboard events,
+checks distinct scenario metrics and rendered graphs, rejects bad requests,
+exercises reset/duplicate/mode races, manual scenarios and laptop layout, and
+checks console/network errors. It uses the optional Python `websockets` package.
+Start Flask with `TORSADE_DEMO_ENABLED=1 PORT=5055`, start Chrome with
+`google-chrome --headless=new --no-sandbox --enable-unsafe-swiftshader --remote-debugging-port=9231 --user-data-dir=/tmp/torsade-test`,
+then run `.venv/bin/python tests/browser_demo.py`. Screenshots go to
+`/tmp/torsade-{comparison,combined,laptop}.png`.

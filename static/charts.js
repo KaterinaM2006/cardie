@@ -76,7 +76,7 @@ function trace(ctx, box, ts, vs, xMax, yMin, yMax, style, width = 2) {
 /** Action potential: control ghosted behind the dosed trace. */
 export function drawAP(canvas, dosed, control, tNow, opts = {}) {
   const { ctx, w, h } = prep(canvas);
-  const box = { x0: 46, y0: 12, x1: w - 10, y1: h - 26 };
+  const box = { x0: 46, y0: 12, x1: w - 20, y1: h - 36 };
   const yMin = -95, yMax = 50;
   axes(ctx, box, { xMax: BEAT_MS, yMin, yMax,
                    yTicks: [-80, -40, 0, 40], yLabel: 'mV', xLabel: 'ms' });

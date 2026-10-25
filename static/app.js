@@ -1,3 +1,6 @@
+import { DEMO } from './demo-script.js';
+import { createDemoChat } from './demo-chat.js';
+import { ScenarioViews } from './scenarios.js';
 // app.js — state, wiring, render loop.
 //
 // The whole precomputed sweep is fetched once. Every slider move redraws from
@@ -6,6 +9,7 @@
 
 import { CellView } from './cell3d.js';
 import { doseBundle, frameAt, BEAT_MS, CHANNELS, membraneColour,
+         MEMBRANE_RAMP, V_MIN, V_MAX,
          MODES, MODE_LABEL, MODE_SHORT, MODE_COLOUR } from './signals.js';
 import { drawAP, drawNet, drawStrip, drawTransmural } from './charts.js';
 
@@ -20,6 +24,7 @@ const S = {
   xdT: 150, stage: 'heart',
 };
 
+let scenes, chat, stateVersion = 0;
 let cell, lastTs = 0, whyTimer = 0, ctxTimer = 0;
 
 // ---- data ------------------------------------------------------------------
@@ -49,13 +54,44 @@ async function boot() {
     `<span class="pill ${integ.gemini ? 'on' : ''}">Narration ${integ.gemini ? 'live' : 'offline'}</span>`;
 
   cell = new CellView($('cell'), { onHover: showTip, onModeChange: setStage });
+  $('voltageScale').style.background = `linear-gradient(to top, ${
+    MEMBRANE_RAMP.map(([p, c]) => `rgb(${c.join(',')}) ${p * 100}%`).join(',')})`;
+  $('voltageScale').innerHTML = [V_MAX, 0, -40, V_MIN].map(v =>
+    `<span style="top:${(V_MAX - v) / (V_MAX - V_MIN) * 100}%">${v}</span>`).join('');
 
   $('narrate').disabled = !S.gemini;
   renderModelCard();
   renderValidation();
   selectDrug(S.drug);
   setStage('heart');
+  scenes = new ScenarioViews($('scenarioHost'), S.sweep);
+  chat = createDemoChat({host:$('demoChat'), enabled:S.sweep.demo_enabled,
+    names:Object.keys(S.sweep.drugs),
+    onMode: active => { S.demo=active; stateVersion++; clearTimeout(whyTimer); clearTimeout(ctxTimer); stopNarration();
+      $('ask').disabled=active; $('smiles').disabled=active; $('narrate').disabled=active || !S.gemini; },
+    resetScene: () => { stateVersion++; scenes.reset(); applySingle(DEMO.start); S.t=0; cell.exitToHeart(); },
+    apply: async (action,current) => {
+      // Yield to paint the pending indicator; every commit is guarded against Reset/mode changes.
+      const prepared=scenes.prepare(DEMO.a,DEMO.b);
+      await new Promise(resolve=>setTimeout(resolve,300));
+      if(!current()) return [];
+      if(action==='single') { scenes.reset(); applySingle(DEMO.a); }
+      else if(!scenes.open(action,DEMO.a,DEMO.b)) throw Error('Scene unavailable');
+      S.t=0;
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      if(!current()) return [];
+      return prepared.map(s=>s.data);
+    },
+  });
+  const currentA=()=>({drug:S.drug,dose:S.dose});
+  const currentB=()=>({drug:$('partner').value,dose:+$('partnerDose').value});
+  $('singleView').onclick=()=>{const a=scenes.a || currentA(),b=scenes.b || currentB();if(chat.stage!=='complete')chat.manualChange();applySingle(a);scenes.open('single',a,b);};
+  for(const [id,view] of [['compareView','comparison'],['combinedView','combined']]) $(id).onclick=()=>{
+    const a=currentA(),b=currentB();if(chat.stage!=='complete')chat.manualChange();applySingle(a);scenes.open(view,a,b);
+  };
+  for(const id of ['partner','partnerDose']) $(id).onchange=()=>{const a=currentA(),b=currentB();chat.manualChange();applySingle(a);$('partner').value=b.drug;$('partnerDose').value=b.dose;scenes.reset();$('partner').value=b.drug;$('partnerDose').value=b.dose;};
   bindUI();
+  if(S.sweep.demo_enabled && new URLSearchParams(location.search).get('demo')==='1') chat.setMode(true);
 
   if (reduceMotion) {
     // Hold a static frame on the plateau, with the scrub bar available.
@@ -65,12 +101,18 @@ async function boot() {
   requestAnimationFrame(loop);
 }
 
-function selectDrug(name) {
-  S.drug = name;
+function applySingle(scenario) {
+  S.drug=scenario.drug; S.dose=scenario.dose;
+  $('drug').value=S.drug; $('dose').value=S.dose;
   refresh();
+}
+function selectDrug(name) {
+  chat?.manualChange(); scenes?.reset();
+  applySingle({drug:name,dose:S.dose});
 }
 
 function refresh() {
+  stateVersion++;
   S.bundle = doseBundle(S.sweep, S.drug, S.dose);
   // The heart's activation sweep samples this run's voltage trace, so the
   // organ view changes with the dose exactly as the cell view does.
@@ -190,10 +232,12 @@ function renderTransmural() {
 function queueWhy() {
   clearTimeout(whyTimer);
   stopNarration();
+  if(S.demo) { $('why').textContent='Scripted demo: independently computed single-drug metrics refer to A. No combined risk is calculated.'; $('whySrc').textContent='scripted'; return; }
+  const version=stateVersion;
   // Debounced, and cached server-side per (drug, dose): the slider never
   // triggers a model call on every tick.
   whyTimer = setTimeout(async () => {
-    const drug = S.drug, dose = Math.round(S.dose * 2) / 2;
+    const drug = S.drug, dose = S.dose;
     $('why').textContent = '…';
     try {
       const r = await fetch('./api/explain', {
@@ -201,11 +245,12 @@ function queueWhy() {
         body: JSON.stringify({ drug, dose }),
       });
       const j = await r.json();
-      if (S.drug !== drug) return;
+      if (stateVersion !== version || S.demo || S.drug !== drug || S.dose !== dose) return;
       $('why').textContent = j.text || '—';
       $('whySrc').textContent = j.source === 'template' ? 'offline' : j.source;
       $('whySrc').className = `pill ${j.source === 'template' ? '' : 'on'}`;
     } catch {
+      if(stateVersion !== version || S.demo)return;
       $('why').textContent = 'explanation unavailable';
     }
   }, 280);
@@ -230,8 +275,10 @@ function queueContext() {
   if (S.stage === 'flying') return;
   $('ctxKicker').textContent = CTX_KICKER[S.stage] || '';
   $('ctxTitle').textContent = CTX_TITLE[S.stage] || '';
+  if(S.demo) { $('ctxText').textContent='Explanatory heart animation driven by single-cell data. Use the chat to choose the next scene.'; $('ctxSrc').textContent='scripted'; return; }
+  const version=stateVersion;
   ctxTimer = setTimeout(async () => {
-    const drug = S.drug, dose = Math.round(S.dose * 2) / 2, stage = S.stage;
+    const drug = S.drug, dose = S.dose, stage = S.stage;
     $('ctxText').textContent = '…';
     try {
       const r = await fetch('./api/context', {
@@ -239,11 +286,12 @@ function queueContext() {
         body: JSON.stringify({ drug, dose, stage }),
       });
       const j = await r.json();
-      if (S.drug !== drug || S.stage !== stage) return;
+      if (stateVersion !== version || S.demo || S.drug !== drug || S.dose !== dose || S.stage !== stage) return;
       $('ctxText').textContent = j.text || '—';
       $('ctxSrc').textContent = j.source === 'template' ? 'offline' : j.source;
       $('ctxSrc').className = `pill ${j.source === 'template' ? '' : 'on'}`;
     } catch {
+      if(stateVersion !== version || S.demo)return;
       $('ctxText').textContent = 'context unavailable';
     }
   }, 280);
@@ -263,12 +311,14 @@ function stopNarration() {
 }
 
 async function narrate() {
+  if(S.demo)return;
+  const version=stateVersion;
   if (!S.gemini) {
     $('narrateStatus').textContent = 'narration offline (no GEMINI_API_KEY)';
     return;
   }
   stopNarration();
-  const drug = S.drug, dose = Math.round(S.dose * 2) / 2;
+  const drug = S.drug, dose = S.dose;
   $('narrateStatus').textContent = 'generating…';
   $('narrate').disabled = true;
   try {
@@ -282,6 +332,7 @@ async function narrate() {
       return;
     }
     const blob = await r.blob();
+    if(version !== stateVersion || S.demo)return;
     narrateAudio = new Audio(URL.createObjectURL(blob));
     narrateAudio.onended = () => { $('narrateStatus').textContent = ''; };
     narrateAudio.play();
@@ -289,7 +340,7 @@ async function narrate() {
   } catch {
     $('narrateStatus').textContent = 'narration unavailable';
   } finally {
-    $('narrate').disabled = false;
+    $('narrate').disabled = S.demo || !S.gemini;
   }
 }
 
@@ -307,12 +358,18 @@ function xdPhaseLabel(t) {
 
 async function refreshCrossDrug() {
   if (!S.bundle) return;
+  const version=stateVersion;
   const dose = Math.max(1, Math.min(4, Math.round(S.dose) || 1));
   $('xdTText').textContent = `${S.xdT} ms · ${xdPhaseLabel(S.xdT)}`;
+  if(S.demo) {
+    renderCrossDrug({source:'cache',drugs:Object.keys(S.sweep.drugs).map(drug=>({drug,V:frameAt(doseBundle(S.sweep,drug,dose).frames,S.xdT).V}))});return;
+  }
   try {
     const r = await fetch(`./api/tiger/cross-drug?t=${S.xdT}&dose=${dose}`);
     if (!r.ok) return;
-    renderCrossDrug(await r.json());
+    const result=await r.json();
+    if(version !== stateVersion || S.demo)return;
+    renderCrossDrug(result);
   } catch { /* the panel just doesn't update this tick */ }
 }
 
@@ -341,6 +398,8 @@ function renderCrossDrug(j) {
 }
 
 async function ask(q) {
+  if(S.demo)return;
+  chat?.manualChange(); scenes.reset(); const version=++stateVersion;
   $('askout').textContent = '…';
   try {
     const r = await fetch('./api/ask', {
@@ -349,6 +408,7 @@ async function ask(q) {
     });
     const j = await r.json();
     if (!r.ok) { $('askout').textContent = j.error || 'could not parse'; return; }
+    if(version !== stateVersion || S.demo)return;
     $('drug').value = j.drug;
     S.drug = j.drug;
     S.dose = j.dose_mult;
@@ -363,12 +423,15 @@ async function ask(q) {
 }
 
 async function lookupSmiles(smiles) {
+  if(S.demo)return;
+  scenes.reset();const version=++stateVersion;
   const out = $('smilesout');
   out.textContent = 'matching…';
   try {
     const r = await fetch(`./api/analogue?smiles=${encodeURIComponent(smiles)}`);
     const j = await r.json();
     if (!r.ok) { out.textContent = j.error || 'no match'; return; }
+    if(version !== stateVersion || S.demo)return;
     $('drug').value = j.drug;
     S.drug = j.drug;
     refresh();
@@ -418,6 +481,8 @@ function renderValidation() {
 function setStage(mode) {
   S.stage = mode;
   $('ionLegend').style.display = mode === 'cell' ? 'block' : 'none';
+  $('voltageLegend').style.display = mode === 'cell' ? 'block' : 'none';
+  $('cellCaption').style.display = mode === 'cell' ? 'block' : 'none';
   $('enter').style.display = mode === 'heart' ? 'block' : 'none';
   $('back').style.display = mode === 'cell' ? 'block' : 'none';
   $('cellHint').style.display = mode === 'cell' ? 'block' : 'none';
@@ -449,7 +514,7 @@ function showTip(g) {
 
 function bindUI() {
   $('drug').onchange = e => selectDrug(e.target.value);
-  $('dose').oninput = e => { S.dose = +e.target.value; refresh(); };
+  $('dose').oninput = e => { const dose=+e.target.value,drug=S.drug; chat?.manualChange();scenes.reset();applySingle({drug,dose}); };
   $('play').onclick = () => {
     S.playing = !S.playing;
     $('play').innerHTML = S.playing ? '&#10073;&#10073; Pause' : '&#9654; Play';
@@ -457,6 +522,7 @@ function bindUI() {
   $('scrub').oninput = e => { S.t = +e.target.value; };
   $('speed').onchange = e => { S.speed = +e.target.value; };
   $('back').onclick = () => cell.exitToHeart();
+  $('enterButton').onclick = () => cell.enterCell();
   addEventListener('keydown', e => {
     if (e.key === 'Escape' && cell.mode === 'cell') cell.exitToHeart();
   });
@@ -471,7 +537,7 @@ function bindUI() {
     }
   };
   addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
   });
 }
@@ -488,7 +554,8 @@ function loop(ts) {
   }
   $('tText').textContent = `${S.t.toFixed(0)} ms`;
 
-  if (S.bundle) {
+  scenes?.update(S.t,dt,S.playing);
+  if (S.bundle && (!scenes || scenes.view==='single')) {
     const f = frameAt(S.bundle.frames, S.t);
     const g = S.dose > 0 ? frameAt(S.control, S.t) : null;
     cell.update(f, g, dt, S.playing, S.t / BEAT_MS);

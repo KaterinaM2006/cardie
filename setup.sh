@@ -5,6 +5,7 @@
 # simulation with "fatal error: sundials/sundials_config.h: No such file or
 # directory". This is the single most likely thing to cost you an hour.
 set -euo pipefail
+export CC=/usr/bin/gcc
 cd "$(dirname "$0")"
 
 VENV=.venv
@@ -12,11 +13,11 @@ PY="$VENV/bin/python"
 
 echo "== 1. SUNDIALS =="
 if command -v apt-get >/dev/null; then
-  sudo apt-get update -qq && sudo apt-get install -y -qq libsundials-dev python3-venv
+	sudo apt-get update -qq && sudo apt-get install -y -qq libsundials-dev python3-venv
 elif command -v brew >/dev/null; then
-  brew install sundials
+	brew install sundials
 else
-  echo "install SUNDIALS yourself: conda install -c conda-forge sundials" >&2
+	echo "install SUNDIALS yourself: conda install -c conda-forge sundials" >&2
 fi
 
 echo "== 2. Python packages (into $VENV) =="
@@ -31,10 +32,10 @@ echo "== 3. Verify BEFORE going further. Must print a version, not None. =="
 
 echo "== 4. Data + models (public, no auth) =="
 mkdir -p external
-[ -d external/CiPA ] || \
-  git clone --depth 1 -q https://github.com/FDA/CiPA.git external/CiPA
-[ -d external/myokit-models ] || \
-  git clone --depth 1 -q https://github.com/myokit/models.git external/myokit-models
+[ -d external/CiPA ] ||
+	git clone --depth 1 -q https://github.com/FDA/CiPA.git external/CiPA
+[ -d external/myokit-models ] ||
+	git clone --depth 1 -q https://github.com/myokit/models.git external/myokit-models
 
 echo "== 5. Control beat — must print qNet=0.0781 APD90=277.2 =="
 "$PY" engine.py

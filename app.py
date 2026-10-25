@@ -118,6 +118,7 @@ def api_sweep():
     return jsonify({**SWEEP, 'validation': VALIDATION,
                     'drug_info': DRUG_INFO,
                     'model_info': MODEL_INFO,
+                    'demo_enabled': os.environ.get('TORSADE_DEMO_ENABLED', '').lower() in ('1', 'true'),
                     'integrations': {'tiger': tiger.available(),
                                      'gemini': explain_mod.available()}})
 

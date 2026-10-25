@@ -122,3 +122,12 @@ def test_validation_payload_matches_the_page_claims(client):
     assert v['qnet']['correct'] == 12
     assert v['dapd90']['correct'] == 10
     assert 'separability' in v['disclaimer']
+
+
+def test_demo_environment_gate(monkeypatch):
+    from app import app
+    client = app.test_client()
+    monkeypatch.delenv('TORSADE_DEMO_ENABLED', raising=False)
+    assert client.get('/api/sweep').json['demo_enabled'] is False
+    monkeypatch.setenv('TORSADE_DEMO_ENABLED', '1')
+    assert client.get('/api/sweep').json['demo_enabled'] is True
