@@ -356,4 +356,4 @@ if __name__ == '__main__':
     print(f'tiger: {"connected" if tiger.available() else "not configured"}   '
           f'gemini: {"enabled" if explain_mod.available() else "template fallback"}')
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)),
-            debug=False)
+            debug=False, threaded=True)
