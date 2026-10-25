@@ -60,6 +60,30 @@
 
   main{display:grid; grid-template-columns:272px minmax(0,1fr) 336px; gap:16px;
        padding:16px 22px; align-items:start}
+  /* Every top-level section is a direct child of <main>, explicitly placed
+     into a desktop column + row (not left to grid auto-placement, which
+     advances a single shared row cursor and shoves a short column's items
+     down to match a taller column's row count) so the mobile media query
+     can give each one an independent stacking order below instead of being
+     stuck with whichever column it visually belongs to on desktop. */
+  [data-sec="context"]  { grid-column: 1; grid-row: 1; }
+  [data-sec="badge1"]   { grid-column: 1; grid-row: 2; }
+  [data-sec="badge2"]   { grid-column: 1; grid-row: 3; }
+  [data-sec="model"]    { grid-column: 1; grid-row: 4; }
+  [data-sec="glossary"] { grid-column: 1; grid-row: 5; }
+  [data-sec="cell"]       { grid-column: 2; grid-row: 1; }
+  [data-sec="transport"]  { grid-column: 2; grid-row: 2; }
+  [data-sec="ap"]         { grid-column: 2; grid-row: 3; }
+  [data-sec="net"]        { grid-column: 2; grid-row: 4; }
+  [data-sec="transmural"] { grid-column: 2; grid-row: 5; }
+  [data-sec="crossdrug"]  { grid-column: 2; grid-row: 6; }
+  [data-sec="about"]    { grid-column: 3; grid-row: 1; }
+  [data-sec="verdict"]  { grid-column: 3; grid-row: 2; }
+  [data-sec="blocks"]   { grid-column: 3; grid-row: 3; }
+  [data-sec="why"]      { grid-column: 3; grid-row: 4; }
+  [data-sec="ask"]      { grid-column: 3; grid-row: 5; }
+  [data-sec="molecule"] { grid-column: 3; grid-row: 6; }
+  [data-sec="validation"] { grid-row: 7; }
   .card{background:var(--panel); border:1px solid var(--line);
         border-radius:14px; padding:14px; box-shadow:var(--shadow)}
   .card h3{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
@@ -228,6 +252,25 @@
   @media (max-width:1240px){
     main{grid-template-columns:1fr}
     .vgrid{grid-template-columns:1fr}
+    [data-sec]{grid-column:1; grid-row:auto}
+    [data-sec="context"]{order:1}
+    [data-sec="about"]{order:2}
+    [data-sec="cell"]{order:3}
+    [data-sec="transport"]{order:3}
+    [data-sec="verdict"]{order:4}
+    [data-sec="ap"]{order:5}
+    [data-sec="net"]{order:6}
+    [data-sec="transmural"]{order:7}
+    [data-sec="crossdrug"]{order:8}
+    [data-sec="model"]{order:9}
+    [data-sec="glossary"]{order:10}
+    [data-sec="badge1"]{order:11}
+    [data-sec="badge2"]{order:12}
+    [data-sec="blocks"]{order:13}
+    [data-sec="why"]{order:14}
+    [data-sec="ask"]{order:15}
+    [data-sec="molecule"]{order:16}
+    [data-sec="validation"]{order:17}
   }
   @media (prefers-reduced-motion: reduce){
     .bar .fill{transition:none}
@@ -264,252 +307,247 @@
 </header>
 
 <main>
-  <!-- ======= LEFT: what you're looking at, Gemini-narrated, stage-aware ======= -->
-  <div>
-    <div class="card">
-      <div class="ctx-kicker" id="ctxKicker">Human heart</div>
-      <div class="ctx-title" id="ctxTitle">Whole-heart view</div>
-      <div id="ctxText">&mdash;</div>
-      <div class="ctx-src">Generated for the current view, compound and dose
-        &mdash; changes with everything you click. <span class="pill" id="ctxSrc"></span></div>
-    </div>
+  <!-- Every section is a direct child of <main>, placed into a desktop
+       column by data-sec (see CSS) so the mobile breakpoint can give each
+       one an independent order instead of being stuck with its column. -->
 
-    <div class="badge-card">
-      <div class="badge-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M2 13h4l2-7 4 14 3-10 2 3h5" stroke="#2f6bff" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div><b>ORd-CiPA v1.0</b><span>Human ventricular myocyte model</span></div>
-    </div>
-    <div class="badge-card">
-      <div class="badge-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <circle cx="9" cy="8" r="3" stroke="#2f6bff" stroke-width="2"/>
-          <circle cx="17" cy="9" r="2.4" stroke="#2f6bff" stroke-width="2"/>
-          <path d="M3 19c0-3 2.5-5 6-5s6 2 6 5M14 19c.3-2.2 2-4 5-4"
-                stroke="#2f6bff" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      </div>
-      <div><b>FDA CiPA</b><span>12 training compounds</span></div>
-    </div>
-
-    <div class="card model-card" style="margin-top:12px">
-      <h3>Model &amp; data sources</h3>
-      <dl id="modelDl"></dl>
-      <div class="scope" id="modelScope"></div>
-    </div>
-
-    <div class="card glossary" style="margin-top:12px">
-      <h3>What do these terms mean?</h3>
-      <details open>
-        <summary>Cell model &amp; protocol</summary>
-        <p><b>O'Hara&ndash;Rudy / ORd-CiPA</b> is a mathematical model of a
-          single human heart-muscle cell, built from real patch-clamp
-          measurements. It doesn't simulate a whole heart &mdash; it solves
-          the equations for one cell's electrical cycle, many times over.</p>
-        <dl>
-          <dt>Endo / Epi / Mid</dt><dd>the three layers of the ventricular
-            wall (inner, outer, middle). Cells differ between them &mdash;
-            see the Transmural heterogeneity panel.</dd>
-          <dt>Cycle length</dt><dd>time between simulated heartbeats. 2000&nbsp;ms
-            is a deliberately slow 30&nbsp;bpm, the FDA's own CiPA protocol.</dd>
-          <dt>Pre-paced beats</dt><dd>the simulation runs 400 beats before
-            recording, so the cell settles into its steady rhythm instead of
-            being captured mid-"warm-up".</dd>
-        </dl>
-      </details>
-      <details>
-        <summary>hERG &amp; drug binding</summary>
-        <p><b>hERG</b> is a potassium channel gene; it's the single most
-          common place a drug accidentally causes dangerous heart rhythms,
-          because blocking it slows the heart's electrical "reset" between
-          beats.</p>
-        <p>A <b>Markov binding model</b> describes how a drug molecule
-          attaches to and detaches from hERG over time. Some drugs bind and
-          release quickly; others get briefly "trapped" inside the channel,
-          which is the more dangerous pattern.</p>
-      </details>
-      <details>
-        <summary>Ion channels (INa, ICaL, Ito&hellip;)</summary>
-        <p>Each channel is a separate "gate" in the cell membrane that lets
-          one type of ion flow in or out. Together they draw the
-          action-potential shape in the chart above.</p>
-        <dl>
-          <dt>INa</dt><dd>fast sodium &mdash; the initial spike of each beat.</dd>
-          <dt>INaL</dt><dd>late sodium &mdash; a small lingering leak; if it
-            doesn't fade, the cell stays activated too long.</dd>
-          <dt>ICaL</dt><dd>L-type calcium &mdash; shapes the plateau and
-            triggers the muscle to actually contract.</dd>
-          <dt>Ito</dt><dd>transient outward potassium &mdash; the brief early
-            "notch" right after the spike.</dd>
-          <dt>IKr / IKs</dt><dd>rapid/slow delayed-rectifier potassium
-            &mdash; the main "reset" currents; hERG encodes IKr.</dd>
-          <dt>IK1</dt><dd>inward-rectifier potassium &mdash; holds the cell
-            at rest between beats.</dd>
-        </dl>
-      </details>
-      <details>
-        <summary>qNet &amp; &Delta;APD90 (the metrics)</summary>
-        <dl>
-          <dt>qNet</dt><dd>the net electrical charge moved across the
-            membrane by six currents over one beat. The single number this
-            project uses to predict risk &mdash; more negative means more
-            risk.</dd>
-          <dt>APD90</dt><dd>how long the cell stays electrically activated
-            before 90% resetting. A prolonged APD90 is the classic
-            early-warning sign of risk, though a less reliable predictor
-            than qNet (shown elsewhere on this page).</dd>
-          <dt>FDA CiPA</dt><dd>the FDA's Comprehensive in vitro
-            Proarrhythmia Assay initiative &mdash; the regulatory framework
-            this whole simulation implements.</dd>
-        </dl>
-      </details>
-    </div>
+  <div class="card" data-sec="context">
+    <div class="ctx-kicker" id="ctxKicker">Human heart</div>
+    <div class="ctx-title" id="ctxTitle">Whole-heart view</div>
+    <div id="ctxText">&mdash;</div>
+    <div class="ctx-src">Generated for the current view, compound and dose
+      &mdash; changes with everything you click. <span class="pill" id="ctxSrc"></span></div>
   </div>
 
-  <!-- ======= CENTRE: the simulation ======= -->
-  <div>
-    <div class="card" id="cellwrap">
-      <canvas id="cell"></canvas>
-      <button id="back" title="back to the whole heart">&larr; Heart</button>
-      <div class="overlay" id="enter">
-        <div class="btn-primary" style="display:inline-block; border-radius:8px; padding:8px 16px; font-weight:700">&#9654; Click the heart</div>
-        <div class="enter-label"><small>descend to a single ventricular myocyte</small></div>
-      </div>
-      <div class="overlay legend" id="ionLegend" style="display:none">
-        <div><i style="background:#ffc048"></i>Na<sup>+</sup>
-             <i style="background:#1fae6e;margin-left:8px"></i>Ca<sup>2+</sup>
-             <i style="background:#2f6bff;margin-left:8px"></i>K<sup>+</sup></div>
-        <div style="margin-top:3px"><i style="background:#8891b8"></i>drug-bound hERG</div>
-      </div>
-      <div class="overlay cell-hint" id="cellHint" style="display:none">drag to rotate &middot; hover a channel &middot;
-        faded cell behind is the drug-free control, in sync</div>
-      <div class="overlay" id="banner">REPOLARISATION FAILURE
-        <small>the cell does not recover before the next stimulus</small></div>
-      <div id="tip" class="mono"></div>
+  <div class="badge-card" data-sec="badge1">
+    <div class="badge-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M2 13h4l2-7 4 14 3-10 2 3h5" stroke="#2f6bff" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
     </div>
-
-    <div class="transport">
-      <button id="play">&#10073;&#10073; Pause</button>
-      <input type="range" id="scrub" min="0" max="2000" step="1" value="0">
-      <span class="mono" id="tText" style="min-width:8ch">0 ms</span>
-      <label for="speed" style="margin-left:4px">Speed</label>
-      <select id="speed">
-        <option value="0.12">0.12&times;</option>
-        <option value="0.25" selected>0.25&times;</option>
-        <option value="0.5">0.5&times;</option>
-        <option value="1">1&times;</option>
-      </select>
+    <div><b>ORd-CiPA v1.0</b><span>Human ventricular myocyte model</span></div>
+  </div>
+  <div class="badge-card" data-sec="badge2">
+    <div class="badge-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="9" cy="8" r="3" stroke="#2f6bff" stroke-width="2"/>
+        <circle cx="17" cy="9" r="2.4" stroke="#2f6bff" stroke-width="2"/>
+        <path d="M3 19c0-3 2.5-5 6-5s6 2 6 5M14 19c.3-2.2 2-4 5-4"
+              stroke="#2f6bff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
     </div>
-
-    <div class="card chart" style="margin-top:12px">
-      <h3>Action potential &mdash; dosed vs drug-free control (ghost)</h3>
-      <canvas id="ap"></canvas>
-    </div>
-    <div class="card chart" style="margin-top:10px">
-      <h3>Net current &mdash; shaded area is qNet</h3>
-      <canvas id="net"></canvas>
-    </div>
-
-    <div class="card" style="margin-top:10px">
-      <h3>Transmural heterogeneity</h3>
-      <div class="note">Endo/Epi/Mid are three real cell-layer solves, not a
-        tissue model. Dispersion between them &mdash; especially how much
-        longer the M cell stays depolarised &mdash; is the actual re-entry
-        mechanism behind torsade de pointes. Illustrative alongside the
-        validated qNet classification, not a replacement for it.</div>
-      <div class="chart" style="margin-top:8px"><canvas id="transmural"></canvas></div>
-      <div class="transmural-legend" id="transLegend"></div>
-      <div class="transmural-metrics" id="transMetrics"></div>
-    </div>
-
-    <div class="card" style="margin-top:10px">
-      <h3>Cross-drug comparison <span class="pill" id="tigerSrc"></span></h3>
-      <div class="note">Membrane potential of all 12 compounds at one moment
-        in the beat, at the current dose. Colour is the same voltage ramp as
-        the myocyte above; the border is the FDA risk class. Click a cell to
-        inspect that compound.</div>
-      <div class="transport" style="margin-top:8px">
-        <label for="xdT" style="color:var(--muted); font-size:12px">Moment</label>
-        <input type="range" id="xdT" min="0" max="600" step="5" value="150">
-        <span class="mono" id="xdTText" style="min-width:16ch">150 ms &middot; plateau</span>
-      </div>
-      <div id="crossdrug" class="xd-grid"></div>
-    </div>
+    <div><b>FDA CiPA</b><span>12 training compounds</span></div>
   </div>
 
-  <!-- ======= RIGHT: this compound's risk ======= -->
-  <div>
-    <div class="card drug-card">
-      <h3>About <span id="drugAboutName"></span></h3>
-      <dl id="drugDl"></dl>
-      <div class="status" id="drugStatus"></div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h3>Verdict</h3>
-      <div class="verdict" id="verdict">
-        <div class="cls" id="riskClass">&mdash;</div>
-        <div class="sub" id="riskSub"></div>
-      </div>
-      <div class="metrics">
-        <div class="metric">
-          <div class="k">qNet</div>
-          <div class="v mono" id="qnet">&mdash;</div>
-          <div class="n">&micro;C/&micro;F &middot; control 0.0781</div>
-        </div>
-        <div class="metric">
-          <div class="k">&Delta;APD90</div>
-          <div class="v mono" id="dapd">&mdash;</div>
-          <div class="n" id="apdNote">vs 277.2 ms</div>
-        </div>
-        <div class="metric">
-          <div class="k">hERG drug-bound</div>
-          <div class="v mono" id="bound">&mdash;</div>
-          <div class="n">peak occupancy</div>
-        </div>
-        <div class="metric">
-          <div class="k">FDA label</div>
-          <div class="v mono" id="fda">&mdash;</div>
-          <div class="n">CiPA training set</div>
-        </div>
-      </div>
-      <div class="note" id="interpNote"></div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h3>Channel block at this dose</h3>
-      <div id="blocks"></div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h3>Why <span id="whySrc" class="pill"></span></h3>
-      <div id="why">&mdash;</div>
-      <div class="why-row">
-        <button id="narrate" title="hear this explanation read aloud">&#128266; Narrate</button>
-        <span id="narrateStatus"></span>
-      </div>
-      <div class="src">Generated from the computed block profile. The language
-        model never touches the numerical path; narration is Gemini reading
-        this same finished sentence aloud, not generating anything new.</div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h3>Ask</h3>
-      <input type="text" id="ask" placeholder="is terfenadine safe at twice the normal dose?">
-      <div id="askout"></div>
-    </div>
-
-    <div class="card" style="margin-top:12px">
-      <h3>Any molecule <span class="pill">predicted</span></h3>
-      <input type="text" id="smiles" placeholder="paste a SMILES string">
-      <div id="smilesout" class="note"></div>
-    </div>
+  <div class="card model-card" data-sec="model" style="margin-top:12px">
+    <h3>Model &amp; data sources</h3>
+    <dl id="modelDl"></dl>
+    <div class="scope" id="modelScope"></div>
   </div>
 
-  <div class="card validation">
+  <div class="card glossary" data-sec="glossary" style="margin-top:12px">
+    <h3>What do these terms mean?</h3>
+    <details open>
+      <summary>Cell model &amp; protocol</summary>
+      <p><b>O'Hara&ndash;Rudy / ORd-CiPA</b> is a mathematical model of a
+        single human heart-muscle cell, built from real patch-clamp
+        measurements. It doesn't simulate a whole heart &mdash; it solves
+        the equations for one cell's electrical cycle, many times over.</p>
+      <dl>
+        <dt>Endo / Epi / Mid</dt><dd>the three layers of the ventricular
+          wall (inner, outer, middle). Cells differ between them &mdash;
+          see the Transmural heterogeneity panel.</dd>
+        <dt>Cycle length</dt><dd>time between simulated heartbeats. 2000&nbsp;ms
+          is a deliberately slow 30&nbsp;bpm, the FDA's own CiPA protocol.</dd>
+        <dt>Pre-paced beats</dt><dd>the simulation runs 400 beats before
+          recording, so the cell settles into its steady rhythm instead of
+          being captured mid-"warm-up".</dd>
+      </dl>
+    </details>
+    <details>
+      <summary>hERG &amp; drug binding</summary>
+      <p><b>hERG</b> is a potassium channel gene; it's the single most
+        common place a drug accidentally causes dangerous heart rhythms,
+        because blocking it slows the heart's electrical "reset" between
+        beats.</p>
+      <p>A <b>Markov binding model</b> describes how a drug molecule
+        attaches to and detaches from hERG over time. Some drugs bind and
+        release quickly; others get briefly "trapped" inside the channel,
+        which is the more dangerous pattern.</p>
+    </details>
+    <details>
+      <summary>Ion channels (INa, ICaL, Ito&hellip;)</summary>
+      <p>Each channel is a separate "gate" in the cell membrane that lets
+        one type of ion flow in or out. Together they draw the
+        action-potential shape in the chart above.</p>
+      <dl>
+        <dt>INa</dt><dd>fast sodium &mdash; the initial spike of each beat.</dd>
+        <dt>INaL</dt><dd>late sodium &mdash; a small lingering leak; if it
+          doesn't fade, the cell stays activated too long.</dd>
+        <dt>ICaL</dt><dd>L-type calcium &mdash; shapes the plateau and
+          triggers the muscle to actually contract.</dd>
+        <dt>Ito</dt><dd>transient outward potassium &mdash; the brief early
+          "notch" right after the spike.</dd>
+        <dt>IKr / IKs</dt><dd>rapid/slow delayed-rectifier potassium
+          &mdash; the main "reset" currents; hERG encodes IKr.</dd>
+        <dt>IK1</dt><dd>inward-rectifier potassium &mdash; holds the cell
+          at rest between beats.</dd>
+      </dl>
+    </details>
+    <details>
+      <summary>qNet &amp; &Delta;APD90 (the metrics)</summary>
+      <dl>
+        <dt>qNet</dt><dd>the net electrical charge moved across the
+          membrane by six currents over one beat. The single number this
+          project uses to predict risk &mdash; more negative means more
+          risk.</dd>
+        <dt>APD90</dt><dd>how long the cell stays electrically activated
+          before 90% resetting. A prolonged APD90 is the classic
+          early-warning sign of risk, though a less reliable predictor
+          than qNet (shown elsewhere on this page).</dd>
+        <dt>FDA CiPA</dt><dd>the FDA's Comprehensive in vitro
+          Proarrhythmia Assay initiative &mdash; the regulatory framework
+          this whole simulation implements.</dd>
+      </dl>
+    </details>
+  </div>
+
+  <div class="card" id="cellwrap" data-sec="cell">
+    <canvas id="cell"></canvas>
+    <button id="back" title="back to the whole heart">&larr; Heart</button>
+    <div class="overlay" id="enter">
+      <div class="btn-primary" style="display:inline-block; border-radius:8px; padding:8px 16px; font-weight:700">&#9654; Click the heart</div>
+      <div class="enter-label"><small>descend to a single ventricular myocyte</small></div>
+    </div>
+    <div class="overlay legend" id="ionLegend" style="display:none">
+      <div><i style="background:#ffc048"></i>Na<sup>+</sup>
+           <i style="background:#1fae6e;margin-left:8px"></i>Ca<sup>2+</sup>
+           <i style="background:#2f6bff;margin-left:8px"></i>K<sup>+</sup></div>
+      <div style="margin-top:3px"><i style="background:#8891b8"></i>drug-bound hERG</div>
+    </div>
+    <div class="overlay cell-hint" id="cellHint" style="display:none">drag to rotate &middot; hover a channel &middot;
+      faded cell behind is the drug-free control, in sync</div>
+    <div class="overlay" id="banner">REPOLARISATION FAILURE
+      <small>the cell does not recover before the next stimulus</small></div>
+    <div id="tip" class="mono"></div>
+  </div>
+
+  <div class="transport" data-sec="transport">
+    <button id="play">&#10073;&#10073; Pause</button>
+    <input type="range" id="scrub" min="0" max="2000" step="1" value="0">
+    <span class="mono" id="tText" style="min-width:8ch">0 ms</span>
+    <label for="speed" style="margin-left:4px">Speed</label>
+    <select id="speed">
+      <option value="0.12">0.12&times;</option>
+      <option value="0.25" selected>0.25&times;</option>
+      <option value="0.5">0.5&times;</option>
+      <option value="1">1&times;</option>
+    </select>
+  </div>
+
+  <div class="card chart" data-sec="ap" style="margin-top:12px">
+    <h3>Action potential &mdash; dosed vs drug-free control (ghost)</h3>
+    <canvas id="ap"></canvas>
+  </div>
+  <div class="card chart" data-sec="net" style="margin-top:10px">
+    <h3>Net current &mdash; shaded area is qNet</h3>
+    <canvas id="net"></canvas>
+  </div>
+
+  <div class="card" data-sec="transmural" style="margin-top:10px">
+    <h3>Transmural heterogeneity</h3>
+    <div class="note">Endo/Epi/Mid are three real cell-layer solves, not a
+      tissue model. Dispersion between them &mdash; especially how much
+      longer the M cell stays depolarised &mdash; is the actual re-entry
+      mechanism behind torsade de pointes. Illustrative alongside the
+      validated qNet classification, not a replacement for it.</div>
+    <div class="chart" style="margin-top:8px"><canvas id="transmural"></canvas></div>
+    <div class="transmural-legend" id="transLegend"></div>
+    <div class="transmural-metrics" id="transMetrics"></div>
+  </div>
+
+  <div class="card" data-sec="crossdrug" style="margin-top:10px">
+    <h3>Cross-drug comparison <span class="pill" id="tigerSrc"></span></h3>
+    <div class="note">Membrane potential of all 12 compounds at one moment
+      in the beat, at the current dose. Colour is the same voltage ramp as
+      the myocyte above; the border is the FDA risk class. Click a cell to
+      inspect that compound.</div>
+    <div class="transport" style="margin-top:8px">
+      <label for="xdT" style="color:var(--muted); font-size:12px">Moment</label>
+      <input type="range" id="xdT" min="0" max="600" step="5" value="150">
+      <span class="mono" id="xdTText" style="min-width:16ch">150 ms &middot; plateau</span>
+    </div>
+    <div id="crossdrug" class="xd-grid"></div>
+  </div>
+
+  <div class="card drug-card" data-sec="about">
+    <h3>About <span id="drugAboutName"></span></h3>
+    <dl id="drugDl"></dl>
+    <div class="status" id="drugStatus"></div>
+  </div>
+
+  <div class="card" data-sec="verdict" style="margin-top:12px">
+    <h3>Verdict</h3>
+    <div class="verdict" id="verdict">
+      <div class="cls" id="riskClass">&mdash;</div>
+      <div class="sub" id="riskSub"></div>
+    </div>
+    <div class="metrics">
+      <div class="metric">
+        <div class="k">qNet</div>
+        <div class="v mono" id="qnet">&mdash;</div>
+        <div class="n">&micro;C/&micro;F &middot; control 0.0781</div>
+      </div>
+      <div class="metric">
+        <div class="k">&Delta;APD90</div>
+        <div class="v mono" id="dapd">&mdash;</div>
+        <div class="n" id="apdNote">vs 277.2 ms</div>
+      </div>
+      <div class="metric">
+        <div class="k">hERG drug-bound</div>
+        <div class="v mono" id="bound">&mdash;</div>
+        <div class="n">peak occupancy</div>
+      </div>
+      <div class="metric">
+        <div class="k">FDA label</div>
+        <div class="v mono" id="fda">&mdash;</div>
+        <div class="n">CiPA training set</div>
+      </div>
+    </div>
+    <div class="note" id="interpNote"></div>
+  </div>
+
+  <div class="card" data-sec="blocks" style="margin-top:12px">
+    <h3>Channel block at this dose</h3>
+    <div id="blocks"></div>
+  </div>
+
+  <div class="card" data-sec="why" style="margin-top:12px">
+    <h3>Why <span id="whySrc" class="pill"></span></h3>
+    <div id="why">&mdash;</div>
+    <div class="why-row">
+      <button id="narrate" title="hear this explanation read aloud">&#128266; Narrate</button>
+      <span id="narrateStatus"></span>
+    </div>
+    <div class="src">Generated from the computed block profile. The language
+      model never touches the numerical path; narration is Gemini reading
+      this same finished sentence aloud, not generating anything new.</div>
+  </div>
+
+  <div class="card" data-sec="ask" style="margin-top:12px">
+    <h3>Ask</h3>
+    <input type="text" id="ask" placeholder="is terfenadine safe at twice the normal dose?">
+    <div id="askout"></div>
+  </div>
+
+  <div class="card" data-sec="molecule" style="margin-top:12px">
+    <h3>Any molecule <span class="pill">predicted</span></h3>
+    <input type="text" id="smiles" placeholder="paste a SMILES string">
+    <div id="smilesout" class="note"></div>
+  </div>
+
+  <div class="card validation" data-sec="validation">
     <h3>Validation &mdash; 12 CiPA training compounds, scored against FDA labels</h3>
     <div class="vgrid">
       <div>
