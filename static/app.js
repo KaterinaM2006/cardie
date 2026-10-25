@@ -503,11 +503,11 @@ function setStage(mode) {
   $('back').style.display = mode === 'cell' ? 'block' : 'none';
   $('cellHint').style.display = mode === 'cell' ? 'block' : 'none';
   document.body.dataset.stage = mode;
-  // A 2000 ms cycle length is 30 bpm — the CiPA protocol, deliberately slow.
-  // Real time reads as a heartbeat at organ scale; the cell view is slowed
-  // down so the plateau and the channel traffic are actually watchable.
+  // A 2000 ms cycle length is 30 bpm -- the CiPA protocol, deliberately slow.
+  // Default to a quarter speed everywhere so the plateau and the channel
+  // traffic are actually watchable, not just a blur between beats.
   if (mode === 'heart' || mode === 'cell') {
-    S.speed = mode === 'heart' ? 1 : 0.25;
+    S.speed = 0.25;
     $('speed').value = String(S.speed);
   }
   if (S.sweep) queueContext();
