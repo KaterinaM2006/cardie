@@ -69,12 +69,19 @@ SIGNALS = ('V', 'Ca_i', 'INa', 'INaL', 'ICaL', 'Ito', 'IKr', 'IKs', 'IK1',
 # The demo query: every compound's membrane potential at one instant. One
 # clean statement against the hypertable, and exactly the query a
 # relational-blob design makes painful.
+#
+# DISTINCT ON (r.drug), ordered by r.drug then distance-to-target, picks
+# exactly the single nearest sample per drug. The earlier version used a
+# fixed +-2ms window instead, which silently returned every sample inside
+# that window -- fine at low sample density, but once real native-resolution
+# data was loaded (a sample roughly every 2.7-3.3ms, denser in fast-changing
+# regions) several drugs returned a dozen-plus "duplicate" rows for one
+# instant instead of one.
 CROSS_DRUG_AT_T = """
-SELECT r.drug, r.dose_mult, s.v
+SELECT DISTINCT ON (r.drug) r.drug, r.dose_mult, s.v
 FROM ap_sample s JOIN sim_run r USING (run_id)
-WHERE s.t_us BETWEEN %(t_us)s - 2000 AND %(t_us)s + 2000
-  AND r.dose_mult = %(dose)s
-ORDER BY s.v;
+WHERE r.dose_mult = %(dose)s
+ORDER BY r.drug, abs(s.t_us - %(t_us)s);
 """
 
 
