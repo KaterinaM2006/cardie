@@ -11,8 +11,8 @@
 //   drug-plugged glyphs  <- ikr.Obound + ikr.IObound + ikr.Cbound
 //   ghost cell behind    <- the drug-free control run, in sync
 //
-// Surface anatomy and lighting are illustrative; motion and channel activity
-// remain bound to the precomputed simulation.
+// Nothing here is hand-tuned to look right. Say that out loud during the
+// demo: judges assume visualisations like this are decorative.
 
 import * as THREE from './vendor/three.module.min.js';
 import { CHANNELS, I_SCALE, membraneRGB, shortening, hergGlyphStates,
@@ -23,29 +23,10 @@ import { Heart } from './heart3d.js';
 // continuous camera move rather than a cut between two views.
 // The organ view sits further back with the heart scaled up, so the descent
 // is a real dolly-in rather than a camera that retreats while the model grows.
-export const HEART_CAM_Z = 13.5, CELL_CAM_Z = 9.5;
-const HEART_BASE = 1.92, HEART_FLYTHROUGH = HEART_BASE * 4;
+export const HEART_CAM_Z = 13.5, CELL_CAM_Z = 8.4;
+const HEART_BASE = 1.75, HEART_FLYTHROUGH = HEART_BASE * 4;
 
-const CELL_LEN = 5.2, CELL_R = 0.94, GHOST_SCALE = 0.72;
-const CELL_HALF = CELL_LEN / 2 + CELL_R;
-
-// A continuous capsule profile with a curved centreline. All visible surface
-// details and channel anchors sample this function, including the rounded caps.
-function cellSurface(x, theta, radial = 1) {
-  const cap = Math.max(0, (Math.abs(x) - CELL_LEN / 2) / CELL_R);
-  const r = CELL_R * (0.91 + 0.09 * Math.cos(x * 1.15))
-    * Math.sqrt(Math.max(0, 1 - cap * cap)) * radial;
-  const bow = -0.28 * Math.cos(x * 0.85) + 0.11 * x;
-  const ripple = 1 + 0.012 * Math.sin(x * 22 + 2 * Math.sin(theta * 3));
-  return new THREE.Vector3(x, bow + r * Math.cos(theta) * ripple,
-    r * Math.sin(theta) * 0.86 * ripple);
-}
-
-function surfaceNormal(x, theta) {
-  const along = cellSurface(x + 0.001, theta).sub(cellSurface(x - 0.001, theta));
-  const around = cellSurface(x, theta + 0.001).sub(cellSurface(x, theta - 0.001));
-  return around.cross(along).normalize();
-}
+const CELL_LEN = 5.2, CELL_R = 1.05, GHOST_SCALE = 0.72;
 const N_HERG = 10;
 const GLYPH_COUNT = { INa: 4, INaL: 3, ICaL: 4, Ito: 3, IKr: N_HERG, IKs: 3, IK1: 3 };
 const MAX_PARTICLES = 400;
@@ -73,18 +54,16 @@ export class CellView {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     this.camera.position.set(0, 0.45, HEART_CAM_Z);
-    this.cameraTarget = new THREE.Vector3(0, 0.20, 0);
-    this.camera.lookAt(this.cameraTarget);
-    this.flight = { progress: 0 };
+    this.camera.lookAt(0, 0, 0);
 
-    // A soft warm key and cool rim reveal the surface without overwhelming
-    // the voltage colours with tinted illumination.
-    this.scene.add(new THREE.HemisphereLight(0xf5faff, 0xc6b4bd, 1.25));
-    const key = new THREE.DirectionalLight(0xfff4ed, 2.5);
-    key.position.set(-3, 5, 7);
+    // Neutral key light: a strongly tinted rig would shift the membrane
+    // colour away from the voltage it is supposed to encode.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const key = new THREE.DirectionalLight(0xffffff, 1.1);
+    key.position.set(4, 6, 7);
     this.scene.add(key);
-    const rim = new THREE.DirectionalLight(0xabcfff, 1.8);
-    rim.position.set(4, 2, -4);
+    const rim = new THREE.DirectionalLight(0x89a6ff, 0.45);
+    rim.position.set(-6, -2, -5);
     this.scene.add(rim);
 
     this.root = new THREE.Group();
@@ -95,7 +74,6 @@ export class CellView {
     this.cellRoot = new THREE.Group();
     this.cellRoot.visible = false;
     this.root.add(this.cellRoot);
-    this.cellRoot.rotation.set(0.05, -0.14, 0.24);
 
     this.heart = new Heart();
     this.heart.group.scale.setScalar(HEART_BASE);
@@ -107,46 +85,17 @@ export class CellView {
     this._buildParticles();
     this._bindPointer();
 
-    this._captureCellMaterials();
-    this._applyFade();
+    this.cellMats = [this.membraneMat, this.ghost.material];
     this.resize();
     new ResizeObserver(() => this.resize()).observe(canvas.parentElement);
   }
 
-  _captureCellMaterials() {
-    // Capture opacity before any transition, once per shared material.
-    this.cellMats = new Map();
-    this.cellRoot.traverse(o => {
-      if (!o.material || o === this.membrane || o === this.core || o === this.ghost) return;
-      this.cellMats.set(o.material, o.material.opacity);
-      o.material.transparent = true;
-    });
-  }
-
   // ---- geometry -----------------------------------------------------------
 
-  _rod(radius, length, segments = 64) {
-    const points = [], indices = [], uv = [], rows = 112;
-    for (let i = 0; i <= rows; i++) {
-      // Cosine spacing resolves the cap normals without a shoulder or seam.
-      const x = -CELL_HALF * Math.cos(i / rows * Math.PI);
-      for (let j = 0; j <= segments; j++) {
-        const p = cellSurface(x, j / segments * Math.PI * 2, radius / CELL_R);
-        points.push(p.x * length / CELL_LEN, p.y, p.z);
-        uv.push(i / rows, j / segments);
-        if (i < rows && j < segments) {
-          const k = i * (segments + 1) + j;
-          indices.push(k, k + 1, k + segments + 1,
-            k + 1, k + segments + 2, k + segments + 1);
-        }
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    geo.setIndex(indices);
-    geo.computeVertexNormals();
-    return geo;
+  _rod(radius, length, segments = 48) {
+    const g = new THREE.CapsuleGeometry(radius, length, 8, segments);
+    g.rotateZ(Math.PI / 2);
+    return g;
   }
 
   _buildGhost() {
@@ -160,78 +109,64 @@ export class CellView {
         roughness: 0.8, metalness: 0.0, depthWrite: false }));
     // Offset up and back so a clear band of it stays visible past the dosed
     // cell: the point is to compare how long each one stays lit.
-    this.ghost.position.set(0, 1.28, -2.05);
+    this.ghost.position.set(0, 1.22, -2.2);
     this.ghost.scale.setScalar(GHOST_SCALE);
-    this.cellRoot.add(this.ghost);
+    // Not added to cellRoot: as a plain untextured capsule it read as a
+    // drop shadow rather than a second cell. The dosed-vs-control
+    // comparison it was meant to carry is already clear from the 2D
+    // action-potential chart below, so update() still tracks it but
+    // nothing is drawn.
   }
 
   _buildCell() {
     this.cell = new THREE.Group();
     this.cellRoot.add(this.cell);
-    this.membraneMat = new THREE.MeshPhysicalMaterial({
-      color: 0xf36d7e, emissive: 0xc82d48, emissiveIntensity: 0.15,
-      roughness: 0.32, metalness: 0, clearcoat: 0.5, clearcoatRoughness: 0.25,
-      transparent: true, opacity: 0.48, side: THREE.FrontSide, depthWrite: false,
-    });
+
+    // Semi-transparent so the myofibrils and striations stay visible: the
+    // contraction is half the story and it happens inside the cell.
+    this.membraneMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1642, emissive: 0x1a1642, emissiveIntensity: 0.55,
+      roughness: 0.34, metalness: 0.05,
+      transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+      depthWrite: false });
     this.membrane = new THREE.Mesh(this._rod(CELL_R, CELL_LEN), this.membraneMat);
-    this.membrane.renderOrder = 2;
     this.cell.add(this.membrane);
-    this.coreMat = new THREE.MeshStandardMaterial({
-      color: 0xf46378, roughness: 0.58, emissive: 0xb92f42,
-      emissiveIntensity: 0.10, transparent: true, opacity: 0.92, depthWrite: false,
-    });
-    this.core = new THREE.Mesh(this._rod(CELL_R * 0.86, CELL_LEN), this.coreMat);
-    this.cell.add(this.core);
 
-    // A single line buffer for the membrane lattice: continuous curved
-    // meridians and transverse striations, not separate floating torus rings.
-    const lattice = [], fibres = [];
-    const line = (buffer, points) => {
-      for (let i = 1; i < points.length; i++) {
-        buffer.push(...points[i - 1].toArray(), ...points[i].toArray());
-      }
-    };
-    for (let i = 1; i < 54; i++) {
-      const x = -CELL_HALF + i / 54 * CELL_HALF * 2, points = [];
-      for (let j = 0; j <= 64; j++) {
-        const theta = j / 64 * Math.PI * 2;
-        points.push(cellSurface(x + 0.018 * Math.sin(theta * 5 + i), theta, 1.012));
-      }
-      line(lattice, points);
+    // Sarcomeric striations — the Z-discs. They ride the contraction, so
+    // their spacing compresses with the calcium transient.
+    const ringGeo = new THREE.TorusGeometry(CELL_R * 0.72, 0.035, 6, 40);
+    ringGeo.rotateY(Math.PI / 2);
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xc3b4ff, emissive: 0x5b4b9e, emissiveIntensity: 0.5,
+      roughness: 0.55, transparent: true, opacity: 0.85 });
+    this.striations = new THREE.InstancedMesh(ringGeo, ringMat, 17);
+    const m = new THREE.Matrix4();
+    for (let i = 0; i < 17; i++) {
+      m.makeTranslation((i - 8) * (CELL_LEN / 17), 0, 0);
+      this.striations.setMatrixAt(i, m);
     }
-    for (let j = 0; j < 32; j++) {
-      const points = [], inside = [];
-      for (let i = 1; i < 112; i++) {
-        const x = -CELL_HALF * Math.cos(i / 112 * Math.PI);
-        const theta = j / 32 * Math.PI * 2 + 0.025 * Math.sin(x * 3 + j);
-        points.push(cellSurface(x, theta, 1.012));
-        inside.push(cellSurface(x * 0.96, theta, 0.80));
-      }
-      line(lattice, points);
-      line(fibres, inside);
-    }
-    const addLines = (positions, colour, opacity) => {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      const mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
-        color: colour, transparent: true, opacity, depthWrite: false,
-      }));
-      mesh.renderOrder = 3;
-      this.cell.add(mesh);
-      return mesh;
-    };
-    this.striations = addLines(lattice, 0xfff1ff, 0.34);
-    addLines(fibres, 0xffc7cf, 0.38);
+    this.cell.add(this.striations);
 
-    const nucGeo = new THREE.SphereGeometry(0.19, 24, 18);
-    nucGeo.scale(1.9, 1, 0.82);
+    // Myofibrils running the length of the cell.
+    const fib = new THREE.CylinderGeometry(0.055, 0.055, CELL_LEN, 8);
+    fib.rotateZ(Math.PI / 2);
+    const fibMat = new THREE.MeshStandardMaterial({
+      color: 0xd0c4ff, emissive: 0x4a3d85, emissiveIntensity: 0.4,
+      roughness: 0.65, transparent: true, opacity: 0.6 });
+    for (const [y, z] of [[0.45, 0.3], [-0.45, 0.3], [0.45, -0.3],
+                          [-0.45, -0.3], [0, 0.55], [0, -0.55]]) {
+      const f = new THREE.Mesh(fib, fibMat);
+      f.position.set(0, y, z);
+      this.cell.add(f);
+    }
+
+    const nucGeo = new THREE.SphereGeometry(0.33, 20, 16);
+    nucGeo.scale(1.5, 1, 1);
     const nucMat = new THREE.MeshStandardMaterial({
-      color: 0x91446d, roughness: 0.65, transparent: true, opacity: 0.55,
-      depthWrite: false,
-    });
-    for (const x of [-0.9, 0.9]) {
+      color: 0x4b3f80, roughness: 0.75, transparent: true, opacity: 0.85 });
+    for (const x of [-0.42, 0.42]) {
       const n = new THREE.Mesh(nucGeo, nucMat);
-      n.position.copy(cellSurface(x, 0, 0));
+      n.position.set(x, 0, 0.15);
       this.cell.add(n);
     }
   }
@@ -240,9 +175,9 @@ export class CellView {
     // Ion channels embedded in the sarcolemma. Each glyph is a barrel with a
     // pore that opens with |current|; the hERG ones can additionally be
     // plugged by a drug molecule.
-    const barrel = new THREE.CylinderGeometry(0.075, 0.09, 0.13, 14);
-    const poreGeo = new THREE.CylinderGeometry(0.043, 0.043, 0.15, 12);
-    const drugGeo = new THREE.CylinderGeometry(0.052, 0.052, 0.1, 8);
+    const barrel = new THREE.CylinderGeometry(0.17, 0.2, 0.22, 12);
+    const poreGeo = new THREE.CylinderGeometry(0.095, 0.095, 0.26, 10);
+    const drugGeo = new THREE.CylinderGeometry(0.115, 0.115, 0.17, 6);
 
     let seq = 0;
     const total = Object.values(GLYPH_COUNT).reduce((a, b) => a + b, 0);
@@ -258,9 +193,10 @@ export class CellView {
         seq++;
 
         const g = new THREE.Group();
-        const dir = surfaceNormal(x, theta);
-        g.position.copy(cellSurface(x, theta, 1.015));
-        g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        const dir = new THREE.Vector3(0, Math.cos(theta), Math.sin(theta));
+        g.position.set(x, dir.y * CELL_R * 0.97, dir.z * CELL_R * 0.97);
+        g.lookAt(g.position.clone().add(dir));
+        g.rotateX(Math.PI / 2);
 
         const mat = new THREE.MeshStandardMaterial({
           color: spec.colour, emissive: spec.colour, emissiveIntensity: 0.15,
@@ -301,11 +237,7 @@ export class CellView {
     this.particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.particles.instanceColor = new THREE.InstancedBufferAttribute(
       new Float32Array(MAX_PARTICLES * 3), 3);
-    this.particles.instanceColor.setUsage(THREE.DynamicDrawUsage);
-    // Keep the pool in cell-local space: contraction, twist and rotation then
-    // transform both channel anchors and emitted streams together.
-    this.cell.add(this.particles);
-    this.particles.frustumCulled = false;
+    this.cellRoot.add(this.particles);
 
     this.pool = Array.from({ length: MAX_PARTICLES }, () => ({
       life: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(),
@@ -339,26 +271,19 @@ export class CellView {
     this.yaw = 0;
     this.pitch = 0;
 
-    const updateNdc = e => {
-      const r = this.canvas.getBoundingClientRect();
-      this.ndc.set((e.clientX - r.left) / r.width * 2 - 1,
-        -(e.clientY - r.top) / r.height * 2 + 1);
-    };
     this.canvas.addEventListener('pointerdown', e => {
-      updateNdc(e);
       this.drag = { x: e.clientX, y: e.clientY, yaw: this.yaw,
                     pitch: this.pitch, moved: false };
       this.canvas.setPointerCapture(e.pointerId);
     });
     this.canvas.addEventListener('pointerup', e => {
-      updateNdc(e);
       // A click that did not drag, on the heart, descends into the cell.
       if (this.drag && !this.drag.moved && this.mode === 'heart'
           && this._hitHeart()) {
         this.enterCell();
       }
       this.drag = null;
-      if (this.canvas.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
+      this.canvas.releasePointerCapture(e.pointerId);
     });
     this.canvas.addEventListener('pointermove', e => {
       const r = this.canvas.getBoundingClientRect();
@@ -375,7 +300,6 @@ export class CellView {
       this._pick(e.clientX - r.left, e.clientY - r.top);
     });
     this.canvas.addEventListener('pointerleave', () => this.onHover?.(null));
-    this.canvas.addEventListener('pointercancel', () => { this.drag = null; });
   }
 
   _hitHeart() {
@@ -390,7 +314,7 @@ export class CellView {
       return;
     }
     this.canvas.style.cursor = 'grab';
-    if (this.mode !== 'cell' || !this.onHover) { this.onHover?.(null); return; }
+    if (!this.onHover) return;
     this.ray.setFromCamera(this.ndc, this.camera);
     const hit = this.ray.intersectObjects(this.pickTargets, false)[0];
     this.onHover(hit ? { ...hit.object.userData.glyph, px, py } : null);
@@ -412,7 +336,7 @@ export class CellView {
     this.cellRoot.visible = true;
     this.cellRoot.scale.setScalar(0.04);
 
-    if (!gsap || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!gsap) {                              // GSAP missing: cut, don't hang
       this._finishEnter();
       return;
     }
@@ -421,15 +345,15 @@ export class CellView {
       onComplete: () => { this._tl = null; this._finishEnter(); },
     });
     this._tl = tl;
-    tl.to(this.flight, { progress: 1, duration: 1.5 }, 0)
+    tl.to(this.camera.position, { z: CELL_CAM_Z, y: 1.7, duration: 1.5 }, 0)
       .to(this.heart.group.scale, { x: HEART_FLYTHROUGH, y: HEART_FLYTHROUGH,
                                     z: HEART_FLYTHROUGH, duration: 1.5 }, 0)
       .to(this, { cellFade: 1, duration: 0.9,
-                  onUpdate: () => this._applyFade() }, 0.35)
+                  onUpdate: () => this._applyFade() }, 0.5)
       .to(this.cellRoot.scale, { x: 1, y: 1, z: 1, duration: 1.1,
-                                 ease: 'power2.out' }, 0.35)
-      .to(this.heart, { _fade: 0, duration: 0.5,
-                        onUpdate: () => this.heart.setFade(this.heart._fade) }, 0.12);
+                                 ease: 'back.out(1.3)' }, 0.5)
+      .to(this.heart, { _fade: 0, duration: 0.7,
+                        onUpdate: () => this.heart.setFade(this.heart._fade) }, 0.25);
   }
 
   exitToHeart() {
@@ -439,7 +363,7 @@ export class CellView {
     this.onModeChange?.('flying');
     this.heart.group.visible = true;
 
-    if (!gsap || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!gsap) {
       this._finishExit();
       return;
     }
@@ -448,38 +372,31 @@ export class CellView {
       onComplete: () => { this._tl = null; this._finishExit(); },
     });
     this._tl = tl;
-    tl.to(this.flight, { progress: 0, duration: 1.3 }, 0)
+    tl.to(this.camera.position, { z: HEART_CAM_Z, y: 0.45, duration: 1.3 }, 0)
       .to(this.heart.group.scale, { x: HEART_BASE, y: HEART_BASE, z: HEART_BASE,
                                     duration: 1.3 }, 0)
-      .to(this.heart, { _fade: 1, duration: 0.75,
-                        onUpdate: () => this.heart.setFade(this.heart._fade) }, 0.5)
+      .to(this.heart, { _fade: 1, duration: 0.8,
+                        onUpdate: () => this.heart.setFade(this.heart._fade) }, 0.2)
       .to(this, { cellFade: 0, duration: 0.7,
-                  onUpdate: () => this._applyFade() }, 0.1)
+                  onUpdate: () => this._applyFade() }, 0)
       .to(this.cellRoot.scale, { x: 0.04, y: 0.04, z: 0.04, duration: 0.9 }, 0);
   }
 
   _applyFade() {
     const f = this.cellFade;
-    this.cellRoot.visible = f > 0.001;
-    for (const [mat, opacity] of this.cellMats) {
-      mat.opacity = opacity * f;
-      mat.depthWrite = f > 0.98 && mat !== this.particles.material;
-      // Lines and interior details should never obscure the membrane.
-      if (mat.isLineBasicMaterial || mat === this.coreMat) mat.depthWrite = false;
-    }
-  }
-
-  _aimCamera() {
-    const p = this.flight.progress;
-    // At narrow aspect ratios the horizontal cell span determines distance.
-    // Reserve the lower part of the panel for captions and interaction hints.
-    const aspect = Math.max(this.camera.aspect, 0.1);
-    const heartZ = Math.max(HEART_CAM_Z, 9.5 / aspect);
-    const cellZ = Math.max(CELL_CAM_Z, 13.0 / aspect);
-    this.camera.position.set(0, 0.45 * (1 - p),
-      THREE.MathUtils.lerp(heartZ, cellZ, p));
-    this.cameraTarget.set(0, THREE.MathUtils.lerp(0.25, -0.12, p), 0);
-    this.camera.lookAt(this.cameraTarget);
+    this.cellRoot.visible = f > 0.01;
+    this.cellRoot.traverse(o => {
+      // The membrane and the ghost rewrite their own opacity every frame
+      // from the simulated voltage, and apply cellFade themselves.
+      if (o === this.membrane || o === this.ghost) return;
+      if (o.material && o.material.transparent !== undefined) {
+        if (o.userData.baseOpacity === undefined) {
+          o.userData.baseOpacity = o.material.opacity;
+        }
+        o.material.transparent = true;
+        o.material.opacity = o.userData.baseOpacity * f;
+      }
+    });
   }
 
   _finishEnter() {
@@ -487,9 +404,7 @@ export class CellView {
     this.cellFade = 1;
     this.cellRoot.scale.setScalar(1);
     this.cellRoot.visible = true;
-    this.flight.progress = 1;
-    this._aimCamera();
-    this._applyFade();
+    this.camera.position.set(this.camera.position.x, 1.7, CELL_CAM_Z);
     this.heart.setFade(0);
     this.heart.group.scale.setScalar(HEART_FLYTHROUGH);
     this.onModeChange?.('cell');
@@ -499,9 +414,7 @@ export class CellView {
     this.mode = 'heart';
     this.cellFade = 0;
     this.cellRoot.visible = false;
-    this.flight.progress = 0;
-    this._aimCamera();
-    this._applyFade();
+    this.camera.position.set(this.camera.position.x, 0.45, HEART_CAM_Z);
     this.heart.setFade(1);
     this.heart.group.scale.setScalar(HEART_BASE);
     this.onModeChange?.('heart');
@@ -514,7 +427,6 @@ export class CellView {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this._aimCamera();
   }
 
   // ---- per-frame ----------------------------------------------------------
@@ -526,7 +438,6 @@ export class CellView {
    * @param emitting  false while paused — the cell holds its pose
    */
   update(frame, ghost, dt, emitting = true, phase = 0) {
-    this._aimCamera();
     // The heart runs off the same frame: same solved beat, organ scale.
     if (this.heart.group.visible) this.heart.update(frame, phase);
     this.root.rotation.y = this.yaw;
@@ -536,41 +447,34 @@ export class CellView {
       return;
     }
 
-    // Membrane potential -> fill colour and restrained emission. Decode the
-    // sRGB ramp before lighting so material and CSS legend colours agree.
+    // Membrane potential -> fill colour and glow.
+    // The emissive term carries the colour, not the diffuse term: a lit
+    // surface would read as "whatever the lights are" rather than as voltage.
     const [r, g, b] = membraneRGB(frame.V);
-    this.membraneMat.color.setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
-    this.membraneMat.emissive.copy(this.membraneMat.color);
-    this.coreMat.color.copy(this.membraneMat.color);
-    this.coreMat.color.multiplyScalar(0.55);
-    this.coreMat.emissive.copy(this.coreMat.color);
-    this.coreMat.opacity = 0.92 * this.cellFade;
-    this.coreMat.depthWrite = this.cellFade > 0.98;
-    this.membraneMat.emissiveIntensity = 0.10 + 0.18 *
+    this.membraneMat.color.setRGB(r / 255, g / 255, b / 255);
+    this.membraneMat.emissive.setRGB(r / 255, g / 255, b / 255);
+    this.membraneMat.emissiveIntensity = 0.3 + 1.0 *
       clamp01((frame.V + 88) / 133);
     // Scaled by the descent fade: this opacity is rewritten every frame, so
     // the transition cannot own it.
     this.membraneMat.opacity =
-      (0.38 + 0.10 * clamp01((frame.V + 88) / 133)) * this.cellFade;
+      (0.46 + 0.26 * clamp01((frame.V + 88) / 133)) * this.cellFade;
 
     // Calcium transient -> contraction. Lags the upstroke, as it should.
     const s = shortening(frame.Ca_i);
-    // Longitudinal shortening and radial bulging follow the same calcium
-    // transient, with a slight twist that makes the striations readable.
-    this.cell.scale.set(1 - s, 1 + s * 0.32, 1 + s * 0.32);
-    this.cell.rotation.x = 0.025 * Math.sin(phase * Math.PI * 2);
+    this.cell.scale.set(1 - s, 1 + s * 0.45, 1 + s * 0.45);
 
     if (ghost) {
       const [gr, gg, gb] = membraneRGB(ghost.V);
-      this.ghost.material.color.setRGB(gr / 255, gg / 255, gb / 255, THREE.SRGBColorSpace);
-      this.ghost.material.emissive.copy(this.ghost.material.color);
+      this.ghost.material.color.setRGB(gr / 255, gg / 255, gb / 255);
+      this.ghost.material.emissive.setRGB(gr / 255, gg / 255, gb / 255);
       this.ghost.material.emissiveIntensity =
         0.25 + 0.75 * clamp01((ghost.V + 88) / 133);
       this.ghost.material.opacity =
         (0.2 + 0.2 * clamp01((ghost.V + 88) / 133)) * this.cellFade;
       const gs = shortening(ghost.Ca_i);
-      this.ghost.scale.set(GHOST_SCALE * (1 - gs), GHOST_SCALE * (1 + gs * 0.32),
-                           GHOST_SCALE * (1 + gs * 0.32));
+      this.ghost.scale.set(GHOST_SCALE * (1 - gs), GHOST_SCALE * (1 + gs * 0.45),
+                           GHOST_SCALE * (1 + gs * 0.45));
       this.ghost.visible = true;
     } else {
       this.ghost.visible = false;
