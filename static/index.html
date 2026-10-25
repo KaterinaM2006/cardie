@@ -60,30 +60,20 @@
 
   main{display:grid; grid-template-columns:272px minmax(0,1fr) 336px; gap:16px;
        padding:16px 22px; align-items:start}
-  /* Every top-level section is a direct child of <main>, explicitly placed
-     into a desktop column + row (not left to grid auto-placement, which
-     advances a single shared row cursor and shoves a short column's items
-     down to match a taller column's row count) so the mobile media query
-     can give each one an independent stacking order below instead of being
-     stuck with whichever column it visually belongs to on desktop. */
-  [data-sec="context"]  { grid-column: 1; grid-row: 1; }
-  [data-sec="badge1"]   { grid-column: 1; grid-row: 2; }
-  [data-sec="badge2"]   { grid-column: 1; grid-row: 3; }
-  [data-sec="model"]    { grid-column: 1; grid-row: 4; }
-  [data-sec="glossary"] { grid-column: 1; grid-row: 5; }
-  [data-sec="cell"]       { grid-column: 2; grid-row: 1; }
-  [data-sec="transport"]  { grid-column: 2; grid-row: 2; }
-  [data-sec="ap"]         { grid-column: 2; grid-row: 3; }
-  [data-sec="net"]        { grid-column: 2; grid-row: 4; }
-  [data-sec="transmural"] { grid-column: 2; grid-row: 5; }
-  [data-sec="crossdrug"]  { grid-column: 2; grid-row: 6; }
-  [data-sec="about"]    { grid-column: 3; grid-row: 1; }
-  [data-sec="verdict"]  { grid-column: 3; grid-row: 2; }
-  [data-sec="blocks"]   { grid-column: 3; grid-row: 3; }
-  [data-sec="why"]      { grid-column: 3; grid-row: 4; }
-  [data-sec="ask"]      { grid-column: 3; grid-row: 5; }
-  [data-sec="molecule"] { grid-column: 3; grid-row: 6; }
-  [data-sec="validation"] { grid-row: 7; }
+  /* Desktop: three real column wrappers, each a normal block container, so
+     cards stack with their own natural height inside it -- a short card
+     next to a tall one in another column never leaves a gap, because grid
+     rows are never shared across columns at all. col-left/col-center/
+     col-right hold cards in the same source order as before.
+     Mobile: the media query below switches every wrapper to
+     display:contents, which removes the wrapper from the box tree and
+     promotes its children to be direct grid items of <main> -- at that
+     point each card (data-sec) can take an independent `order` regardless
+     of which wrapper it came from. */
+  .col-left   { grid-column: 1; display:flex; flex-direction:column; gap:16px }
+  .col-center { grid-column: 2; display:flex; flex-direction:column; gap:16px }
+  .col-right  { grid-column: 3; display:flex; flex-direction:column; gap:16px }
+  [data-sec="validation"] { grid-column: 1/-1 }
   .card{background:var(--panel); border:1px solid var(--line);
         border-radius:14px; padding:14px; box-shadow:var(--shadow)}
   .card h3{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
@@ -252,7 +242,8 @@
   @media (max-width:1240px){
     main{grid-template-columns:1fr}
     .vgrid{grid-template-columns:1fr}
-    [data-sec]{grid-column:1; grid-row:auto}
+    .col-left, .col-center, .col-right{display:contents}
+    [data-sec]{grid-column:1}
     [data-sec="context"]{order:1}
     [data-sec="about"]{order:2}
     [data-sec="cell"]{order:3}
@@ -307,9 +298,11 @@
 </header>
 
 <main>
-  <!-- Every section is a direct child of <main>, placed into a desktop
-       column by data-sec (see CSS) so the mobile breakpoint can give each
-       one an independent order instead of being stuck with its column. -->
+  <!-- Three real column wrappers on desktop (independent natural height
+       per column, no shared-row gaps). The mobile media query switches
+       each to display:contents so every card -- now a direct grid item --
+       can take its own `order`, independent of which column it came from. -->
+  <div class="col-left">
 
   <div class="card" data-sec="context">
     <div class="ctx-kicker" id="ctxKicker">Human heart</div>
@@ -340,13 +333,13 @@
     <div><b>FDA CiPA</b><span>12 training compounds</span></div>
   </div>
 
-  <div class="card model-card" data-sec="model" style="margin-top:12px">
+  <div class="card model-card" data-sec="model">
     <h3>Model &amp; data sources</h3>
     <dl id="modelDl"></dl>
     <div class="scope" id="modelScope"></div>
   </div>
 
-  <div class="card glossary" data-sec="glossary" style="margin-top:12px">
+  <div class="card glossary" data-sec="glossary">
     <h3>What do these terms mean?</h3>
     <details open>
       <summary>Cell model &amp; protocol</summary>
@@ -413,6 +406,9 @@
     </details>
   </div>
 
+  </div><!-- /col-left -->
+  <div class="col-center">
+
   <div class="card" id="cellwrap" data-sec="cell">
     <canvas id="cell"></canvas>
     <button id="back" title="back to the whole heart">&larr; Heart</button>
@@ -446,16 +442,16 @@
     </select>
   </div>
 
-  <div class="card chart" data-sec="ap" style="margin-top:12px">
+  <div class="card chart" data-sec="ap">
     <h3>Action potential &mdash; dosed vs drug-free control (ghost)</h3>
     <canvas id="ap"></canvas>
   </div>
-  <div class="card chart" data-sec="net" style="margin-top:10px">
+  <div class="card chart" data-sec="net">
     <h3>Net current &mdash; shaded area is qNet</h3>
     <canvas id="net"></canvas>
   </div>
 
-  <div class="card" data-sec="transmural" style="margin-top:10px">
+  <div class="card" data-sec="transmural">
     <h3>Transmural heterogeneity</h3>
     <div class="note">Endo/Epi/Mid are three real cell-layer solves, not a
       tissue model. Dispersion between them &mdash; especially how much
@@ -467,7 +463,7 @@
     <div class="transmural-metrics" id="transMetrics"></div>
   </div>
 
-  <div class="card" data-sec="crossdrug" style="margin-top:10px">
+  <div class="card" data-sec="crossdrug">
     <h3>Cross-drug comparison <span class="pill" id="tigerSrc"></span></h3>
     <div class="note">Membrane potential of all 12 compounds at one moment
       in the beat, at the current dose. Colour is the same voltage ramp as
@@ -481,13 +477,16 @@
     <div id="crossdrug" class="xd-grid"></div>
   </div>
 
+  </div><!-- /col-center -->
+  <div class="col-right">
+
   <div class="card drug-card" data-sec="about">
     <h3>About <span id="drugAboutName"></span></h3>
     <dl id="drugDl"></dl>
     <div class="status" id="drugStatus"></div>
   </div>
 
-  <div class="card" data-sec="verdict" style="margin-top:12px">
+  <div class="card" data-sec="verdict">
     <h3>Verdict</h3>
     <div class="verdict" id="verdict">
       <div class="cls" id="riskClass">&mdash;</div>
@@ -518,12 +517,12 @@
     <div class="note" id="interpNote"></div>
   </div>
 
-  <div class="card" data-sec="blocks" style="margin-top:12px">
+  <div class="card" data-sec="blocks">
     <h3>Channel block at this dose</h3>
     <div id="blocks"></div>
   </div>
 
-  <div class="card" data-sec="why" style="margin-top:12px">
+  <div class="card" data-sec="why">
     <h3>Why <span id="whySrc" class="pill"></span></h3>
     <div id="why">&mdash;</div>
     <div class="why-row">
@@ -535,17 +534,19 @@
       this same finished sentence aloud, not generating anything new.</div>
   </div>
 
-  <div class="card" data-sec="ask" style="margin-top:12px">
+  <div class="card" data-sec="ask">
     <h3>Ask</h3>
     <input type="text" id="ask" placeholder="is terfenadine safe at twice the normal dose?">
     <div id="askout"></div>
   </div>
 
-  <div class="card" data-sec="molecule" style="margin-top:12px">
+  <div class="card" data-sec="molecule">
     <h3>Any molecule <span class="pill">predicted</span></h3>
     <input type="text" id="smiles" placeholder="paste a SMILES string">
     <div id="smilesout" class="note"></div>
   </div>
+
+  </div><!-- /col-right -->
 
   <div class="card validation" data-sec="validation">
     <h3>Validation &mdash; 12 CiPA training compounds, scored against FDA labels</h3>
