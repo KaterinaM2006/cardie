@@ -19,7 +19,9 @@ TTS_VOICE = os.environ.get('GEMINI_TTS_VOICE', 'Kore')
 
 PROMPT = """You are a cardiac safety pharmacologist. Explain in exactly two sentences
 why this compound received its risk classification. Reference the specific channels.
-Do not hedge, do not add caveats, do not mention being an AI.
+Do not hedge, do not add caveats, do not mention being an AI. Plain prose only --
+no LaTeX, no markdown, no subscript/superscript markup; write channel and metric
+names as plain text (e.g. "INaL", "qNet", "APD90").
 
 Compound: {drug} at {dose}x therapeutic Cmax ({conc:.1f} nM)
 Channel block at this concentration: {block}
@@ -269,7 +271,10 @@ def parse_query(question, drugs):
             from google.genai import types
             resp = _generate(
                 f'Parse this question into a drug and a dose multiple of '
-                f'therapeutic Cmax. Valid drugs: {", ".join(drugs)}.\n\n'
+                f'therapeutic Cmax. Valid drugs: {", ".join(drugs)}. If none '
+                f'of these compounds is actually named or clearly implied by '
+                f'the question, set drug to exactly "unknown" rather than '
+                f'guessing one.\n\n'
                 f'Question: {question}',
                 config=types.GenerateContentConfig(
                     response_mime_type='application/json',

@@ -66,30 +66,25 @@ async function boot() {
   setStage('heart');
   scenes = new ScenarioViews($('scenarioHost'), S.sweep);
   chat = createDemoChat({host:$('demoChat'), enabled:S.sweep.demo_enabled,
-    names:Object.keys(S.sweep.drugs),
     onMode: active => { S.demo=active; stateVersion++; clearTimeout(whyTimer); clearTimeout(ctxTimer); stopNarration();
       $('ask').disabled=active; $('smiles').disabled=active; $('narrate').disabled=active || !S.gemini; },
     resetScene: () => { stateVersion++; scenes.reset(); applySingle(DEMO.start); S.t=0; cell.exitToHeart(); },
-    apply: async (action,current) => {
-      // Yield to paint the pending indicator; every commit is guarded against Reset/mode changes.
-      const prepared=scenes.prepare(DEMO.a,DEMO.b);
-      await new Promise(resolve=>setTimeout(resolve,300));
-      if(!current()) return [];
-      if(action==='single') { scenes.reset(); applySingle(DEMO.a); }
-      else if(!scenes.open(action,DEMO.a,DEMO.b)) throw Error('Scene unavailable');
-      S.t=0;
-      await new Promise(resolve=>requestAnimationFrame(resolve));
-      if(!current()) return [];
-      return prepared.map(s=>s.data);
-    },
+    apply: applyChatMessage,
   });
   const currentA=()=>({drug:S.drug,dose:S.dose});
   const currentB=()=>({drug:$('partner').value,dose:+$('partnerDose').value});
-  $('singleView').onclick=()=>{const a=scenes.a || currentA(),b=scenes.b || currentB();if(chat.stage!=='complete')chat.manualChange();applySingle(a);scenes.open('single',a,b);};
+  $('singleView').onclick=()=>{const a=scenes.a || currentA(),b=scenes.b || currentB();chat.manualChange();applySingle(a);scenes.open('single',a,b);};
   for(const [id,view] of [['compareView','comparison'],['combinedView','combined']]) $(id).onclick=()=>{
-    const a=currentA(),b=currentB();if(chat.stage!=='complete')chat.manualChange();applySingle(a);scenes.open(view,a,b);
+    const a=currentA(),b=currentB();chat.manualChange();applySingle(a);scenes.open(view,a,b);
   };
-  for(const id of ['partner','partnerDose']) $(id).onchange=()=>{const a=currentA(),b=currentB();chat.manualChange();applySingle(a);$('partner').value=b.drug;$('partnerDose').value=b.dose;scenes.reset();$('partner').value=b.drug;$('partnerDose').value=b.dose;};
+  for(const id of ['partner','partnerDose']) $(id).onchange=()=>{
+    // Changing B must refresh whichever scenario is open, not fall back to
+    // Single/A: this used to call scenes.reset() unconditionally, which
+    // silently kicked the user out of A/B comparison or Combined the moment
+    // they touched the B drug or B exposure control.
+    const a=currentA(),b=currentB();chat.manualChange();applySingle(a);
+    if(scenes.view!=='single') scenes.open(scenes.view,a,b);
+  };
   bindUI();
 
   if (reduceMotion) {
@@ -394,6 +389,28 @@ function renderCrossDrug(j) {
   for (const el of $('crossdrug').querySelectorAll('.xd-cell')) {
     el.onclick = () => { $('drug').value = el.dataset.drug; selectDrug(el.dataset.drug); };
   }
+}
+
+async function applyChatMessage(text) {
+  // Same shape as ask(): Gemini (via /api/chat) parses the free-text
+  // message into a compound + dose, the server computes nothing new, and
+  // the reply explains the already-computed result for that pair.
+  const version = ++stateVersion;
+  scenes.reset();
+  const r = await fetch('./api/chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw Error(j.error || 'chat unavailable');
+  if (j.applied && version === stateVersion) {
+    $('drug').value = j.drug;
+    S.drug = j.drug;
+    S.dose = j.dose_mult;
+    $('dose').value = S.dose;
+    refresh();
+  }
+  return { reply: j.reply };
 }
 
 async function ask(q) {

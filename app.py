@@ -231,6 +231,40 @@ def api_ask():
     })
 
 
+@app.post('/api/chat')
+def api_chat():
+    """Free-text chat, live Gemini both ends: parse_query() turns the
+    message into a compound + dose (same structured-output call /api/ask
+    uses), then explain() narrates the already-computed result for that
+    pair. Gemini still never touches a number -- dose_entry/risk_for are
+    plain lookups into the precomputed sweep.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    message = (body.get('message') or '').strip()
+    if not message:
+        return jsonify({'error': 'empty message'}), 422
+    parsed = explain_mod.parse_query(message, DRUG_NAMES)
+    if not parsed.get('drug'):
+        return jsonify({
+            'reply': "I couldn't match that to one of the 12 CiPA compounds "
+                     '(e.g. dofetilide, verapamil, terfenadine). Try '
+                     'something like "show me terfenadine at 3x Cmax".',
+            'applied': False, 'drugs': DRUG_NAMES,
+        })
+    drug, dose_mult = parsed['drug'], parsed['dose_mult']
+    e = dose_entry(drug, dose_mult)
+    d = SWEEP['drugs'][drug]
+    risk = risk_for(d['qnet_mean'])
+    out = explain_mod.explain(
+        drug=drug, dose_mult=round(float(e['mult']), 2), conc_nM=e['conc_nM'],
+        block=e['block'], bound=e['peak_bound'], qnet=e['qNet'],
+        dapd90=e['dAPD90'], risk=risk, repol_failure=e['repol_failure'])
+    return jsonify({
+        'reply': out['text'], 'source': out['source'], 'applied': True,
+        'drug': drug, 'dose_mult': e['mult'], 'parse_source': parsed.get('source'),
+    })
+
+
 @app.get('/api/validation')
 def api_validation():
     return jsonify(VALIDATION)
