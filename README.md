@@ -5,6 +5,10 @@
 Molecule → per-ion-channel block → human ventricular myocyte simulation →
 torsade-de-pointes risk class, scored against the FDA's own labels.
 
+**[Try it live](http://104.207.131.198)** &middot; [demo video](demo/cardie_demo.mp4)
+
+[![Cardie demo](demo/cardie_hero.jpg)](demo/cardie_demo.mp4)
+
 The centrepiece is a WebGL cardiomyocyte you can poison in real time. Every
 channel of that animation is bound to a real state variable from the FDA's
 cell model: the membrane colour *is* membrane potential, the contraction *is*
@@ -40,8 +44,8 @@ up front rather than buried in a footer:
 ## Quick start
 
 ```bash
-git clone https://github.com/daohongliu/oxhack-project.git
-cd oxhack-project
+git clone https://github.com/KaterinaM2006/cardie.git
+cd cardie
 ./setup.sh                  # SUNDIALS, venv, both data repos, control-beat check
 .venv/bin/python app.py     # http://localhost:5000
 ```
