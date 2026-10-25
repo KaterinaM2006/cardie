@@ -1,5 +1,11 @@
 # Cardie
 
+
+https://github.com/user-attachments/assets/f7f0f97c-2ac3-4ed0-a0f0-d0165e187dc7
+
+
+
+
 **In-silico cardiac proarrhythmia screen with a live, animated heart cell.**
 
 Molecule → per-ion-channel block → human ventricular myocyte simulation →
